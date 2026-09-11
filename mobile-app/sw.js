@@ -1,5 +1,5 @@
-const CACHE_NAME = 'job-helper-mobile-v9';
-const APP_SHELL = ['./', './index.html', './app.js?v=9', './schedules.js?v=9', './styles.css?v=9', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'job-helper-mobile-v10';
+const APP_SHELL = ['./', './index.html', './app.js?v=10', './career-fairs.js?v=10', './schedules.js?v=9', './styles.css?v=9', './manifest.webmanifest', './icon.svg'];
 const DB_NAME = 'job-application-helper-mobile';
 const DB_VERSION = 1;
 const STORE_NAME = 'private-state';

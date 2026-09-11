@@ -1,7 +1,7 @@
 {
   "name": "job-application-helper-desktop",
   "private": true,
-  "version": "1.1.18",
+  "version": "1.1.19",
   "description": "秋招网申助手的独立投递记录桌面端",
   "author": "jwk",
   "license": "MIT",

@@ -5,6 +5,7 @@ import {
   scheduleEntries,
   upcomingScheduleItems,
 } from './schedules.js?v=9';
+import { filterAndSortCareerFairs } from './career-fairs.js?v=10';
 
 const DB_NAME = 'job-application-helper-mobile';
 const DB_VERSION = 1;
@@ -483,18 +484,7 @@ function applicationCard(record) {
 
 function renderCareerFairs() {
   const query = elements.fairSearch.value.trim().toLocaleLowerCase();
-  const now = Date.now();
-  const fairs = [...(snapshot?.careerFairs ?? [])]
-    .filter(fair => !query || [fair.name, fair.location, fair.organizer, fair.targetCompanies, fair.targetRoles, fair.notes]
-      .some(value => String(value ?? '').toLocaleLowerCase().includes(query)))
-    .sort((left, right) => {
-      const leftTime = Date.parse(left.startsAt);
-      const rightTime = Date.parse(right.startsAt);
-      const leftUpcoming = fairEnd(left) >= now;
-      const rightUpcoming = fairEnd(right) >= now;
-      if (leftUpcoming !== rightUpcoming) return leftUpcoming ? -1 : 1;
-      return leftUpcoming ? leftTime - rightTime : rightTime - leftTime;
-    });
+  const fairs = filterAndSortCareerFairs(snapshot?.careerFairs ?? [], query);
   if (!fairs.length) return renderEmpty(elements.fairList, query ? '没有匹配的招聘会' : '暂无招聘会');
   elements.fairList.replaceChildren(...fairs.map(careerFairCard));
 }
@@ -733,10 +723,6 @@ function statusClass(status) {
 
 function recordTime(record) {
   return Math.max(...[record.appliedAt, record.createdAt, record.updatedAt].map(value => Date.parse(value || '') || 0));
-}
-
-function fairEnd(fair) {
-  return Date.parse(fair.endsAt || fair.startsAt || '') || 0;
 }
 
 function formatDateTime(value) {

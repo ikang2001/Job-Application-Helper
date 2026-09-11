@@ -84,15 +84,13 @@ export function deleteCareerFair(fairsInput: readonly CareerFair[], id: string):
 export function filterAndSortCareerFairs(
   fairsInput: readonly CareerFair[],
   query: string,
-  now = new Date(),
 ): CareerFair[] {
   const keyword = query.trim().toLocaleLowerCase();
-  const nowTime = now.getTime();
   return normalizeCareerFairs(fairsInput)
     .filter(fair => !keyword || careerFairSearchValues(fair).some(value => (
       value.toLocaleLowerCase().includes(keyword)
     )))
-    .sort((left, right) => compareCareerFairs(left, right, nowTime));
+    .sort(compareCareerFairs);
 }
 
 export function upcomingCareerFairCount(fairsInput: readonly CareerFair[], now = new Date()): number {
@@ -156,13 +154,8 @@ function careerFairSearchValues(fair: CareerFair): string[] {
   ];
 }
 
-function compareCareerFairs(left: CareerFair, right: CareerFair, nowTime: number): number {
-  const leftTime = Date.parse(left.startsAt);
-  const rightTime = Date.parse(right.startsAt);
-  const leftUpcoming = isUpcomingCareerFair(left, nowTime);
-  const rightUpcoming = isUpcomingCareerFair(right, nowTime);
-  if (leftUpcoming !== rightUpcoming) return leftUpcoming ? -1 : 1;
-  return leftUpcoming ? leftTime - rightTime : rightTime - leftTime;
+function compareCareerFairs(left: CareerFair, right: CareerFair): number {
+  return Date.parse(left.startsAt) - Date.parse(right.startsAt);
 }
 
 function isUpcomingCareerFair(fair: CareerFair, nowTime: number): boolean {

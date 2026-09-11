@@ -22,7 +22,7 @@ export function CareerFairsView(props: CareerFairsViewProps) {
   return (
     <main className="records-workbench career-fairs-workbench">
       <div className="workbench-heading">
-        <div><p>CAREER FAIR / SCHEDULE</p><h1>招聘会</h1><span>{upcoming} 场待参加；即将开始的招聘会优先显示，过期活动保留在后面。</span></div>
+        <div><p>CAREER FAIR / SCHEDULE</p><h1>招聘会</h1><span>{upcoming} 场待参加；全部招聘会按开始时间从早到晚排列。</span></div>
         <div className="workbench-actions"><button type="button" className="button-primary new-record-button" disabled={props.busy} onClick={props.onNew}>＋ 新建招聘会</button></div>
       </div>
       <div className="records-toolbar">

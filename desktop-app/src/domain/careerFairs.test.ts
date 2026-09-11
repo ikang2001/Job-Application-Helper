@@ -41,7 +41,7 @@ test('招聘会可新建、更新和删除且保留创建时间', () => {
   assert.equal(deleteCareerFair(updated.careerFairs, updated.careerFair.id).length, 0);
 });
 
-test('即将开始的招聘会优先，过期招聘会按最近时间保留在后面', () => {
+test('招聘会无论是否结束都按开始时间从早到晚排列', () => {
   const past = saveCareerFair([], input('昨天招聘会', '2026-09-08T09:00'), NOW).careerFair;
   const later = saveCareerFair([], input('下周招聘会', '2026-09-16T09:00'), NOW).careerFair;
   const soon = saveCareerFair([], input('明天招聘会', '2026-09-10T09:00'), NOW).careerFair;
@@ -52,11 +52,11 @@ test('即将开始的招聘会优先，过期招聘会按最近时间保留在�
   const fairs = [past, later, skipped, soon];
 
   assert.deepEqual(
-    filterAndSortCareerFairs(fairs, '', new Date(NOW)).map(fair => fair.name),
-    ['明天招聘会', '下周招聘会', '不参加的招聘会', '昨天招聘会'],
+    filterAndSortCareerFairs(fairs, '').map(fair => fair.name),
+    ['昨天招聘会', '明天招聘会', '下周招聘会', '不参加的招聘会'],
   );
   assert.equal(upcomingCareerFairCount(fairs, new Date(NOW)), 2);
-  assert.equal(filterAndSortCareerFairs(fairs, '下周', new Date(NOW))[0]?.name, '下周招聘会');
+  assert.equal(filterAndSortCareerFairs(fairs, '下周')[0]?.name, '下周招聘会');
 });
 
 test('招聘会校验拒绝结束早于开始和非 HTTP 链接', () => {
