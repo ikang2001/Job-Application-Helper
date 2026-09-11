@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#173f3b" />
+    <meta name="description" content="秋招投递管理器手机只读视图" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
+    <title>求职进度</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"><i /><i /><i /></span><div><strong>求职进度</strong><small>只读手机视图</small></div></div>
+        <div class="topbar-actions">
+          <button id="notification-button" class="quiet-button" type="button" aria-haspopup="dialog" hidden>手机提醒</button>
+          <button id="install-button" class="quiet-button" type="button" hidden>安装</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="unpaired-view" class="empty-state" hidden>
+          <span class="empty-phone" aria-hidden="true" />
+          <h1>尚未与桌面端配对</h1>
+          <p>在电脑的“手机查看”中扫描二维码。本页面只读取加密快照，不会修改桌面记录。</p>
+        </section>
+
+        <div id="paired-view" hidden>
+          <section class="snapshot-head">
+            <div><p>LAST SAFE SNAPSHOT</p><h1 id="summary-title">求职总览</h1><span id="sync-caption">正在读取本机缓存…</span></div>
+            <button id="refresh-button" class="refresh-button" type="button" aria-label="刷新快照"><span aria-hidden="true">↻</span>刷新</button>
+          </section>
+
+          <section class="metrics" aria-label="投递统计">
+            <article><strong id="metric-total">0</strong><span>全部投递</span></article>
+            <article><strong id="metric-active">0</strong><span>进行中</span></article>
+            <article><strong id="metric-upcoming">0</strong><span>近期安排</span></article>
+          </section>
+
+          <nav class="section-tabs" aria-label="查看栏目">
+            <button class="is-active" type="button" data-section="applications">投递记录</button>
+            <button type="button" data-section="schedules">近期安排</button>
+            <button type="button" data-section="career-fairs">招聘会</button>
+          </nav>
+
+          <section id="applications-section">
+            <label class="search-field"><span aria-hidden="true">⌕</span><input id="record-search" type="search" placeholder="搜索公司、岗位、地点、备注" /></label>
+            <div id="status-filters" class="status-filters" aria-label="按状态筛选"></div>
+            <div id="record-list" class="card-list"></div>
+          </section>
+
+          <section id="schedules-section" hidden>
+            <header class="schedule-section-head">
+              <div><span>NEXT UP</span><h2>近期安排</h2><p>笔试、测评和面试，按开始或截止时间排序</p></div>
+              <strong id="schedule-total">0 项待处理</strong>
+            </header>
+            <nav class="schedule-view-tabs" aria-label="安排状态">
+              <button class="is-active" type="button" data-schedule-view="pending">待处理 <span id="schedule-pending-count">0</span></button>
+              <button type="button" data-schedule-view="completed">已完成 <span id="schedule-completed-count">0</span></button>
+            </nav>
+            <nav class="schedule-category-tabs" aria-label="安排分类">
+              <button class="is-active" type="button" data-schedule-category="all">全部 <span>0</span></button>
+              <button type="button" data-schedule-category="assessment">测评/笔试 <span>0</span></button>
+              <button type="button" data-schedule-category="ai">AI 面试 <span>0</span></button>
+              <button type="button" data-schedule-category="interview">正式面试 <span>0</span></button>
+            </nav>
+            <div id="schedule-list" class="schedule-list"></div>
+            <p class="schedule-readonly-note">手机端仅查看；完成或撤销请在桌面端操作，刷新后会同步到这里。</p>
+          </section>
+
+          <section id="career-fairs-section" hidden>
+            <label class="search-field"><span aria-hidden="true">⌕</span><input id="fair-search" type="search" placeholder="搜索招聘会、地点、目标公司" /></label>
+            <div id="fair-list" class="card-list"></div>
+          </section>
+        </div>
+      </main>
+
+      <div id="reminder-dialog" class="reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="reminder-dialog-title" hidden>
+        <button id="reminder-backdrop" class="reminder-backdrop" type="button" aria-label="关闭手机提醒设置"></button>
+        <section class="reminder-sheet">
+          <header class="reminder-sheet-head">
+            <div><p>MOBILE REMINDERS</p><h2 id="reminder-dialog-title">手机提醒</h2></div>
+            <button id="reminder-close" class="reminder-close" type="button" aria-label="关闭">×</button>
+          </header>
+
+          <div class="reminder-rhythm" aria-label="提醒时间">
+            <span><i></i><strong>提前 24h</strong><small>留出准备时间</small></span>
+            <b aria-hidden="true"></b>
+            <span><i></i><strong>提前 5h</strong><small>当天再次确认</small></span>
+          </div>
+
+          <article class="reminder-channel reminder-channel-primary">
+            <div class="channel-heading">
+              <span class="channel-mark">国内</span>
+              <div><div class="channel-title"><h3>国内 App 提醒</h3><em>推荐</em></div><p>走手机厂商通知通道，不依赖 Chrome 或 VPN。</p></div>
+            </div>
+            <div id="pushplus-status" class="channel-status">正在读取状态…</div>
+            <label class="token-field">
+              <span>PushPlus token</span>
+              <input id="pushplus-token" type="password" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="从 PushPlus 个人中心复制" />
+            </label>
+            <p class="privacy-note">云端只加密保存 token；通知仅包含公司、事项和时间。</p>
+            <div class="channel-actions">
+              <button id="pushplus-save" class="reminder-action reminder-action-primary" type="button">保存并开启</button>
+              <button id="pushplus-test" class="reminder-action" type="button" hidden>发送测试</button>
+              <button id="pushplus-disable" class="reminder-action reminder-action-danger" type="button" hidden>关闭</button>
+            </div>
+            <footer><a href="https://www.pushplus.plus/download.html" target="_blank" rel="noopener noreferrer">安装 PushPlus App</a><a href="https://www.pushplus.plus/push1.html" target="_blank" rel="noopener noreferrer">复制用户 token</a></footer>
+          </article>
+
+          <article class="reminder-channel">
+            <div class="channel-heading">
+              <span class="channel-mark channel-mark-browser">网页</span>
+              <div><div class="channel-title"><h3>浏览器提醒</h3><em>兼容</em></div><p>支持时可作为备用；部分国内浏览器和网络不可用。</p></div>
+            </div>
+            <div id="webpush-status" class="channel-status">正在检查浏览器…</div>
+            <div class="channel-actions">
+              <button id="webpush-toggle" class="reminder-action" type="button">开启浏览器提醒</button>
+            </div>
+          </article>
+
+          <p class="channel-footnote">两种手机通道与桌面提醒彼此独立；同时开启会各收到一条。</p>
+        </section>
+      </div>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+    </div>
+    <script type="module" src="./app.js?v=9"></script>
+  </body>
+</html>

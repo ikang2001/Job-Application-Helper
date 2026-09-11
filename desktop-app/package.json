@@ -1,0 +1,78 @@
+{
+  "name": "job-application-helper-desktop",
+  "private": true,
+  "version": "1.1.18",
+  "description": "秋招网申助手的独立投递记录桌面端",
+  "author": "jwk",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "npm run build && electron .",
+    "lint": "oxlint src *.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/domain/careerFairs.test.ts src/domain/desktopMail.test.ts src/domain/mobileSnapshot.test.ts src/domain/records.test.ts src/domain/reminders.test.ts src/domain/syncDecision.test.ts src/main/desktopStore.test.ts src/main/desktopLocalSyncService.test.ts src/main/desktopMailInboxService.test.ts src/main/desktopNativeMailClient.test.ts src/main/desktopReminderService.test.ts src/main/mobileSnapshotSyncService.test.ts src/renderer/recordsView.test.ts src/renderer/recruitmentSchedule.test.ts src/renderer/App.test.tsx",
+    "build:main": "vite build --config vite.main.config.ts",
+    "build:preload": "vite build --config vite.preload.config.ts",
+    "build:renderer": "vite build --config vite.renderer.config.ts",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "smoke:ui": "npm run build && electron scripts/smoke-render.mjs",
+    "smoke:main": "npm run build && node scripts/smoke-main.mjs",
+    "generate:icon": "node scripts/generate-icon.mjs",
+    "package:win": "npm run check && npm run generate:icon && electron-builder --win nsis && node scripts/write-checksum.mjs"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^24.13.2",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-test-renderer": "^19.1.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "electron": "44.1.1",
+    "electron-builder": "26.15.3",
+    "oxlint": "^1.71.0",
+    "react-test-renderer": "^19.2.8",
+    "tsx": "^4.23.10",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  },
+  "build": {
+    "appId": "com.jwk.jobapplicationhelper.desktop",
+    "productName": "秋招投递管理器",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "output": "../release/desktop"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "秋招投递管理器"
+    },
+    "artifactName": "job-application-helper-desktop-${version}-setup.${ext}"
+  }
+}

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>本机模拟插件弹窗</title>
+<button id="legacy">旧版：保持弹窗并填充</button>
+<button id="fixed">新版：关闭弹窗后填充</button>
+<script>
+document.querySelector('#legacy').onclick=()=>opener.postMessage('fixture-legacy',location.origin);
+document.querySelector('#fixed').onclick=()=>{opener.postMessage('fixture-fixed',location.origin);window.close();};
+</script>
+</html>

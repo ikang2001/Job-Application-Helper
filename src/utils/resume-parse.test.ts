@@ -1,0 +1,353 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { NLPHelper } from './nlpHelper.ts';
+import { parseResumeJSON } from '../parsers/jsonParser.ts';
+
+/**
+ * 取自真实简历（Canva 导出 PDF）的文本结构：
+ * 章节标题独立成行，个人信息无标签并排在页眉，
+ * 学校/公司行把多个字段挤在一行，长描述被硬换行拆开。
+ */
+const RESUME = [
+  '中共党员 2002年5月',
+  '张明 zhangming@example.com 13812345678',
+  '教育经历',
+  '北京师范大学 理论经济学专业 · 硕士 2024/09 - 2027/06',
+  '中国人民大学 劳动经济学专业 · 本科 2020/09 - 2024/06',
+  '实习经历',
+  '科大讯飞 AI产品经理 2026/03 - 2026/06',
+  '产品迭代与功能优化：参与多模态医疗Agent产品从0到1的搭建、规划与迭代，推动产品体验持续优',
+  '化。',
+  '美团快驴 数据运营 2025.10-2026.01',
+  '数据支持与看板搭建：独立承担业务数据支持工作，编写SQL完成数据提取与清洗。',
+  '国务院发展研究中心大数据研究院 产品经理 2025.06-2025.09',
+  '产品更新与迭代：深度参与大数据可视化平台的更新与迭代。',
+  '校园经历',
+  '参与大学生创业训练计划，负责市场分析与财务模块，获得国家级结项。',
+  '专业技能',
+  '运用SQL、Python、Stata、SPSS进行数据提取、清洗和分析。',
+  '常用办公软件：Excel、Word、PowerPoint等。',
+  '自我评价',
+  '本人性格开朗乐观，热情待人，有强烈的责任心。',
+].join('\n');
+
+test('按章节标题切分简历', () => {
+  const kinds = NLPHelper.splitSections(RESUME).map(s => s.kind);
+  assert.deepEqual(kinds, [
+    'basic', 'education', 'experience', 'campus', 'skills', 'selfEvaluation',
+  ]);
+});
+
+test('提取无标签的个人信息', () => {
+  const personal = NLPHelper.parseResumeText(RESUME).personal!;
+  assert.equal(personal.name, '张明');
+  assert.equal(personal.politicalStatus, '中共党员');
+  assert.equal(personal.birthDate, '2002-05');
+  assert.equal(personal.phone, '13812345678');
+  assert.equal(personal.email, 'zhangming@example.com');
+});
+
+test('政治面貌不会被当成姓名', () => {
+  const personal = NLPHelper.parseResumeText(RESUME).personal!;
+  assert.notEqual(personal.name, '中共党员');
+});
+
+test('简历未写性别时不推断', () => {
+  const personal = NLPHelper.parseResumeText(RESUME).personal!;
+  assert.ok(!personal.gender, `不应推断性别，实际得到 ${personal.gender}`);
+});
+
+test('自我评价按章节提取', () => {
+  const personal = NLPHelper.parseResumeText(RESUME).personal!;
+  assert.match(personal.selfEvaluation || '', /性格开朗乐观/);
+});
+
+test('学校行拆分为学校/专业/学历/起止时间', () => {
+  const education = NLPHelper.parseResumeText(RESUME).education!;
+  assert.equal(education.length, 2);
+  assert.deepEqual(
+    { ...education[0], id: undefined },
+    {
+      id: undefined,
+      school: '北京师范大学',
+      major: '理论经济学',
+      degree: '硕士',
+      startDate: '2024-09',
+      endDate: '2027-06',
+    }
+  );
+  assert.equal(education[1].school, '中国人民大学');
+  assert.equal(education[1].degree, '本科');
+});
+
+test('专业与括号学历紧邻时仍分别提取', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '教育背景',
+    '2024-09 ~ 2027-07 西北工业大学（985） 机器人工程（硕士）',
+    '2019-09 ~ 2023-07 武汉轻工大学 自动化（本科）',
+  ].join('\n')).education!;
+
+  assert.deepEqual(parsed.map(item => [item.school, item.major, item.degree]), [
+    ['西北工业大学（985）', '机器人工程', '硕士'],
+    ['武汉轻工大学', '自动化', '本科'],
+  ]);
+});
+
+test('教育经历不收录含「大学」的校园活动描述', () => {
+  const education = NLPHelper.parseResumeText(RESUME).education!;
+  const schools = education.map(e => e.school);
+  assert.ok(
+    !schools.some(s => s?.includes('创业训练计划')),
+    `校园活动被误判为学校：${JSON.stringify(schools)}`
+  );
+});
+
+test('识别不含「公司/集团」的机构名', () => {
+  const experience = NLPHelper.parseResumeText(RESUME).experience!;
+  assert.equal(experience.length, 3);
+  assert.equal(experience[0].company, '科大讯飞');
+  assert.equal(experience[0].position, 'AI产品经理');
+  assert.equal(experience[1].company, '美团快驴');
+  assert.equal(experience[1].position, '数据运营');
+});
+
+test('机构名含「研究」时不与职位对调', () => {
+  const experience = NLPHelper.parseResumeText(RESUME).experience!;
+  assert.equal(experience[2].company, '国务院发展研究中心大数据研究院');
+  assert.equal(experience[2].position, '产品经理');
+});
+
+test('经历起止时间归一化为 YYYY-MM', () => {
+  const experience = NLPHelper.parseResumeText(RESUME).experience!;
+  assert.equal(experience[1].startDate, '2025-10');
+  assert.equal(experience[1].endDate, '2026-01');
+});
+
+test('描述归入所属经历且不串段', () => {
+  const experience = NLPHelper.parseResumeText(RESUME).experience!;
+  assert.match(experience[0].description || '', /多模态医疗Agent/);
+  assert.ok(
+    !experience[0].description?.includes('美团'),
+    '下一条经历的内容串入了上一条'
+  );
+  assert.match(experience[1].description || '', /编写SQL/);
+});
+
+test('技能只保留技能名，不含句子片段', () => {
+  const skills = NLPHelper.parseResumeText(RESUME).skills!;
+  for (const expected of ['SQL', 'Python', 'Stata', 'SPSS', 'Excel', 'Word']) {
+    assert.ok(skills.includes(expected), `缺少技能 ${expected}`);
+  }
+  for (const skill of skills) {
+    assert.ok(skill.length <= 16, `技能项过长：${skill}`);
+    assert.ok(!/[。；]/.test(skill), `技能项含句子标点：${skill}`);
+  }
+});
+
+test('「至今」结束时间', () => {
+  const range = NLPHelper.extractDateRange('某公司 产品经理 2025/03 - 至今');
+  assert.equal(range.startDate, '2025-03');
+  assert.equal(range.endDate, '至今');
+});
+
+test('无章节标题的简历回退到全文扫描', () => {
+  const plain = [
+    '李华 lihua@example.com 13900001111',
+    '清华大学 计算机科学与技术专业 · 本科 2019/09 - 2023/06',
+    '腾讯科技有限公司 后端工程师 2023/07 - 至今',
+  ].join('\n');
+
+  const parsed = NLPHelper.parseResumeText(plain);
+  assert.equal(parsed.education?.[0].school, '清华大学');
+  assert.equal(parsed.education?.[0].degree, '本科');
+  assert.equal(parsed.experience?.[0].company, '腾讯科技有限公司');
+  assert.equal(parsed.experience?.[0].position, '后端工程师');
+  assert.equal(parsed.experience?.[0].endDate, '至今');
+});
+
+
+test('解析奖项/荣誉章节并生成稳定 id', () => {
+  for (const heading of ['奖项', '荣誉', '获奖经历', '荣誉奖励']) {
+    const parsed = NLPHelper.parseResumeText([
+      heading,
+      '优秀毕业生 | 负责人 | 2026-06',
+      '详细描述',
+    ].join('\n'));
+
+    assert.deepEqual(parsed.awards, [{
+      id: 'award-0',
+      name: '优秀毕业生',
+      role: '负责人',
+      date: '2026-06',
+      description: '详细描述',
+    }]);
+  }
+});
+
+test('JSON 解析奖项并忽略废弃字段', () => {
+  const parsed = parseResumeJSON(JSON.stringify({
+    experience: [{ company: 'A', achievements: '旧工作成果' }],
+    projects: [{ name: 'P', achievements: '旧项目成果', technologies: '旧技术栈' }],
+    awards: [{ name: '优秀毕业生', role: '负责人', date: '2026-06', description: '详细描述' }],
+  }));
+
+  assert.equal(parsed.awards?.[0].name, '优秀毕业生');
+  assert.equal('achievements' in parsed.experience![0], false);
+  assert.equal('achievements' in parsed.projects![0], false);
+  assert.equal('technologies' in parsed.projects![0], false);
+});
+
+test('JSON 解析国家区号、证件信息和外语能力', () => {
+  const parsed = parseResumeJSON(JSON.stringify({
+    basic: {
+      phoneCode: '+86',
+      phone: '13800138000',
+      idType: '身份证',
+      idNumber: '110101200001010011',
+      nationality: '中国',
+    },
+    languageList: [{
+      language: '英语',
+      languageEvaluation: '大学英语六级',
+      languageLevel: '通过',
+    }],
+  }));
+
+  assert.equal(parsed.personal?.phoneCountryCode, '+86');
+  assert.equal(parsed.personal?.idType, '身份证');
+  assert.equal(parsed.personal?.idCard, '110101200001010011');
+  assert.equal(parsed.personal?.nationality, '中国');
+  assert.deepEqual(
+    { ...parsed.languages?.[0], id: '<id>' },
+    { id: '<id>', language: '英语', certificate: '大学英语六级', level: '通过' },
+  );
+});
+
+
+test('同一奖项章节解析多条并分别归属描述', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '奖项',
+    '优秀毕业生 | 负责人 | 2026-06',
+    '第一项详细描述',
+    '一等奖 | 核心成员',
+    '第二项第一行描述',
+    '第二项第二行描述',
+  ].join('\n'));
+
+  assert.deepEqual(parsed.awards, [
+    {
+      id: 'award-0',
+      name: '优秀毕业生',
+      role: '负责人',
+      date: '2026-06',
+      description: '第一项详细描述',
+    },
+    {
+      id: 'award-1',
+      name: '一等奖',
+      role: '核心成员',
+      date: '',
+      description: '第二项第一行描述\n第二项第二行描述',
+    },
+  ]);
+});
+
+test('章节标题不会被推断为姓名', () => {
+  for (const heading of ['奖项', '教育经历', '项目经历', '专业技能']) {
+    const parsed = NLPHelper.parseResumeText(`${heading}\n内容`);
+    assert.notEqual(parsed.personal?.name, heading, `${heading} 不应被识别为姓名`);
+  }
+});
+
+test('证书类标题不解析为 awards', () => {
+  for (const heading of ['证书', '资格证书']) {
+    const sections = NLPHelper.splitSections(`${heading}\n英语六级`);
+    assert.equal(sections.some(section => section.kind === 'award'), false);
+    assert.equal(NLPHelper.parseResumeText(`${heading}\n英语六级`).awards, undefined);
+  }
+});
+
+test('项目符号连续纯名称解析为多个奖项', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '荣誉',
+    '• 优秀毕业生',
+    '• 国家奖学金',
+    '• 三好学生',
+  ].join('\n'));
+
+  assert.deepEqual(parsed.awards, [
+    { id: 'award-0', name: '优秀毕业生', role: '', date: '', description: '' },
+    { id: 'award-1', name: '国家奖学金', role: '', date: '', description: '' },
+    { id: 'award-2', name: '三好学生', role: '', date: '', description: '' },
+  ]);
+});
+
+test('描述中的日期或竖线短行不会误拆为奖项', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '奖项',
+    '优秀毕业生 | 负责人 | 2026-06',
+    '2025-12 完成候选材料整理',
+    '负责材料准备 | 现场答辩',
+  ].join('\n'));
+
+  assert.deepEqual(parsed.awards, [{
+    id: 'award-0',
+    name: '优秀毕业生',
+    role: '负责人',
+    date: '2026-06',
+    description: '2025-12 完成候选材料整理\n负责材料准备 | 现场答辩',
+  }]);
+});
+
+
+test('奖项多段描述中的空行不会创建新奖项', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '奖项',
+    '优秀毕业生 | 负责人 | 2026-06',
+    '负责候选材料整理与申报。',
+    '',
+    '2025-12 完成最终评审材料',
+    '成果展示 | 支持现场答辩',
+  ].join('\n'));
+
+  assert.deepEqual(parsed.awards, [{
+    id: 'award-0',
+    name: '优秀毕业生',
+    role: '负责人',
+    date: '2026-06',
+    description: '负责候选材料整理与申报。\n\n2025-12 完成最终评审材料\n成果展示 | 支持现场答辩',
+  }]);
+});
+
+
+test('无项目符号时一致的仅名称列表解析为多个奖项', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '荣誉奖励',
+    '优秀毕业生',
+    '国家奖学金',
+    '三好学生',
+  ].join('\n'));
+
+  assert.deepEqual(parsed.awards, [
+    { id: 'award-0', name: '优秀毕业生', role: '', date: '', description: '' },
+    { id: 'award-1', name: '国家奖学金', role: '', date: '', description: '' },
+    { id: 'award-2', name: '三好学生', role: '', date: '', description: '' },
+  ]);
+});
+
+test('奖项名称后的无标点短描述不会被当作仅名称列表', () => {
+  const parsed = NLPHelper.parseResumeText([
+    '荣誉',
+    '国家奖学金',
+    '学习成绩优异',
+    '综合表现突出',
+  ].join('\n'));
+
+  assert.deepEqual(parsed.awards, [{
+    id: 'award-0',
+    name: '国家奖学金',
+    role: '',
+    date: '',
+    description: '学习成绩优异\n综合表现突出',
+  }]);
+});

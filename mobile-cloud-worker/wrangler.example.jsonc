@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "your-job-application-helper-mobile",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-09",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "VAPID_SUBJECT": "mailto:you@example.com",
+    "VAPID_SERVER_PUBLIC_KEY": "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY"
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "routes": [
+    {
+      "pattern": "jobs.example.com",
+      "custom_domain": true
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "MOBILE_SYNC_KV",
+      "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+    }
+  ],
+  "assets": {
+    "directory": "../mobile-app",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  }
+}

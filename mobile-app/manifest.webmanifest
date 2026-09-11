@@ -1,0 +1,13 @@
+{
+  "name": "秋招投递管理器 · 手机只读",
+  "short_name": "求职进度",
+  "description": "查看桌面端最后成功同步的投递、安排和招聘会快照",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf2f1",
+  "theme_color": "#173f3b",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "job-application-helper-native-mail-companion",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local IMAP and application-record bridge for Job-Application-Helper",
+  "scripts": {
+    "build": "node scripts/prepare-build.mjs && tsc -p tsconfig.json && node scripts/verify-build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/protocol.test.ts src/accountStore.test.ts src/localRecordsStore.test.ts src/handler.test.ts src/imapService.test.ts",
+    "check": "npm run typecheck && npm test && npm run build",
+    "start": "node dist/index.js",
+    "install-host": "node scripts/install-host.mjs",
+    "uninstall-host": "node scripts/uninstall-host.mjs"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^2.0.0",
+    "imapflow": "^1.7.8",
+    "mailparser": "^3.9.20"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^24.13.2",
+    "tsx": "^4.23.10",
+    "typescript": "~6.0.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

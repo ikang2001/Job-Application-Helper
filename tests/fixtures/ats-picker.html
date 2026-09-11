@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>ATS 原组件回归（公开组件，本机假资料）</title>
+<style>
+html { scroll-behavior:smooth; }
+body { font:16px sans-serif; margin:24px; --ihr-color-positive:white; --ihr-font-size-medium:16px; }
+#tools {position:fixed;right:20px;top:10px;background:white;z-index:20000;padding:10px;}
+#result { white-space:pre-wrap; }
+#app {margin-top:1600px;}
+.case {margin:130px 0;width:320px;}
+.ihr_base_picker {height:40px!important;border:1px solid #888!important;}
+.ihr_picker_menu-item {min-height:32px!important;}
+</style>
+<h1>ATS 原组件回归（公开组件，本机假资料）</h1>
+<div id="tools"><button id="run" disabled>运行生产填充器</button><button id="popup">旧入口弹窗对照</button><button id="focusrun">新入口关闭弹窗对照</button></div>
+<pre id="result">正在加载公开组件，不访问招聘 API</pre>
+<div id="app"></div>
+<script type="module">
+import { FormFiller } from '/src/content/formFiller.ts';
+import { FieldType } from '/src/shared/types.ts';
+import { createEmptyUserProfile } from '/src/shared/resumeProfiles.ts';
+import { createPageFillTaskRunner } from '/src/content/pageFillTask.ts';
+const load = path => import(/* @vite-ignore */ `/ats-assets/${path}`);
+try {
+  const [{i:Picker}, {c:createApp}, {h,n:nextTick}, {r:ref}, {c:createI18n}, {U:directives}] = await Promise.all([
+    load('@hrd-components-49eac037.js'),load('@vue-runtime-dom-b83a0a3d.js'),load('@vue-runtime-core-fe69a708.js'),
+    load('@vue-reactivity-741ea987.js'),load('vue-i18n-9d3bfeff.js'),load('@atp-vue3-tsx-support-b36f1f63.js'),
+  ]);
+  const selected = [ref(''), ref(''), ref('')];
+  const schoolOptions=ref([]);
+  const traces=[];
+  for(const event of ['focusin','focusout','click','input']) document.addEventListener(event,e=>{
+    if(e.target.closest('.ihr_base_picker,.ihr_base_picker-panel')) traces.push({event,cls:e.target.className,focused:document.hasFocus()});
+  },true);
+  const specs = [
+    {name:'证件类型', options:[{key:'1',label:'身份证'},{key:'2',label:'护照'}]},
+    {name:'手机区号', options:[{key:'86',label:'中国大陆 +86'},{key:'852',label:'中国香港 00852'}]},
+    {name:'学校', placeholder:'请输入学校名称搜索', searchFn: async ({params}) => {
+      traces.push({searchParams:params});
+      await new Promise(resolve=>setTimeout(resolve,500));
+      schoolOptions.value=params === '西北工业大学' ? [{key:'npu',label:'西北工业大学'}] : [];
+      return {code:'0',data: schoolOptions.value,total:schoolOptions.value.length};
+    }},
+  ];
+  const app = createApp({setup:()=>()=>h('div',specs.map((spec,i)=>h('section',{class:'case'},[
+    h('label',spec.name), h(Picker,{...spec,options:i===2?schoolOptions.value:spec.options, modelValue:selected[i].value,'onUpdate:modelValue':v=>selected[i].value=v}),
+  ])))});
+  app.use(createI18n({legacy:false,locale:'zh-CN',messages:{'zh-CN':{}}}));
+  app.use(directives); app.mount('#app');
+  const button=document.querySelector('#run');
+  button.disabled=false;
+  document.querySelector('#result').textContent='原组件已就绪';
+  const run=async()=>{
+    selected.forEach(value=>value.value='');schoolOptions.value=[];
+    await nextTick();
+    traces.length=0;
+    const profile=createEmptyUserProfile(); profile.personal.idType='身份证';profile.personal.phoneCountryCode='+86';
+    profile.education=[{id:'test',school:'西北工业大学',major:'',degree:'',startDate:'',endDate:''}];
+    const types=[FieldType.ID_TYPE,FieldType.PHONE_COUNTRY_CODE,FieldType.SCHOOL];
+    const fields=Array.from(document.querySelectorAll('.case input')).map((element,i)=>({element,fieldType:types[i],confidence:1}));
+    const start=performance.now();const filler=new FormFiller();
+    const accepted=await filler.fillForm(fields,profile);
+    document.querySelector('#result').textContent=JSON.stringify({accepted,selected:selected.map(v=>v.value),elapsedMs:Math.round(performance.now()-start),diagnostics:filler.getLastFillDiagnostics(),traces},null,2);
+  };
+  button.onclick=run;
+  const startTask=createPageFillTaskRunner();
+  window.addEventListener('message',e=>{
+    if(e.origin!==location.origin)return;
+    if(e.data==='fixture-legacy')void run();
+    if(e.data==='fixture-fixed')startTask(run);
+  });
+  document.querySelector('#popup').onclick=()=>{
+    window.open('/tests/fixtures/ats-popup.html','fixture-popup','width=400,height=300');
+    setTimeout(run,200);
+  };
+  document.querySelector('#focusrun').onclick=()=>{
+    const popup=window.open('/tests/fixtures/ats-popup.html','fixture-popup','width=400,height=300');
+    setTimeout(()=>{popup.close();startTask(run);},200);
+  };
+} catch(error) { document.querySelector('#result').textContent=String(error); }
+</script>
+</html>

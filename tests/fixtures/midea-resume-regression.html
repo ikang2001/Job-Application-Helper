@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>iHR 简历控件回归夹具</title>
+<!--
+  脱敏后的 iHR 结构片段。这里保留组件类名、表单项层级和字段语义，
+  不包含真实姓名、证件号、手机号或招聘接口数据。
+-->
+<section class="ihr_recruit_resume-block ihr_recruit_resume_person_info">
+  <div class="md-form-item ihr_recruit_resume_person_info-idNumber">
+    <div class="ihr_recruit_resume_person_info-phone is-required">
+      <label class="md-form-item__label">证件号码</label>
+      <div class="phone_code_group-input">
+        <div class="ihr_base_picker ihr_base_picker--searchable ihr_dict_picker">
+          <input class="ihr_base_picker-search_input" placeholder="请选择" readonly>
+          <span class="ihr_base_picker-single_selected">身份证</span>
+        </div>
+        <input class="phone_code_group-input" name="idNumber" placeholder="请输入" autocomplete="off">
+      </div>
+    </div>
+    <ul class="ihr_recruit_resume_person_info-idNumber_tip"></ul>
+  </div>
+
+  <div class="md-form-item">
+    <label class="md-form-item__label">籍贯</label>
+    <div class="ihr_base_picker ihr_base_picker--searchable ihr_area_picker ihr_tree_picker">
+      <input class="ihr_base_picker-search_input" name="nativePlace" placeholder="请选择" readonly>
+      <span class="ihr_base_picker-single_selected"></span>
+    </div>
+  </div>
+</section>
+
+<section class="ihr_recruit_resume-block ihr_recruit_resume-block-edu">
+  <div class="ihr_recruit_resume-block-multiple_form-edu-0">
+    <div class="md-form-item"><label>学校</label><input name="schoolName" placeholder="请输入"></div>
+    <div class="md-form-item"><label>学习方式</label>
+      <div class="ihr_base_picker ihr_base_picker--searchable ihr_dict_picker">
+        <input class="ihr_base_picker-search_input" name="learningType" placeholder="请选择" readonly>
+      </div>
+    </div>
+  </div>
+  <div class="ihr_recruit_resume-block-multiple_form-edu-1">
+    <div class="md-form-item"><label>学校</label><input name="schoolName" placeholder="请输入"></div>
+    <div class="md-form-item"><label>学习方式</label>
+      <div class="ihr_base_picker ihr_base_picker--searchable ihr_dict_picker">
+        <input class="ihr_base_picker-search_input" name="learningType" placeholder="请选择" readonly>
+      </div>
+    </div>
+  </div>
+</section>
+</html>

@@ -1,0 +1,17 @@
+services:
+  mobile-sync:
+    build:
+      context: ..
+      dockerfile: mobile-cloud/Dockerfile
+    restart: unless-stopped
+    environment:
+      MOBILE_SYNC_ADMIN_TOKEN: ${MOBILE_SYNC_ADMIN_TOKEN}
+      MOBILE_SYNC_DATA_DIR: /data
+      PORT: 8787
+    volumes:
+      - mobile-sync-data:/data
+    ports:
+      - "8787:8787"
+
+volumes:
+  mobile-sync-data:

@@ -1,0 +1,292 @@
+import type {
+  ApplicationRecord,
+  BackupData,
+  ResumeProfileLibrary,
+  SettingsData,
+  SyncMetadata,
+  UserProfile,
+  WebDAVConfig,
+} from './types';
+import type { LLMConfig } from '../services/llm/types';
+import { normalizeLLMConfig } from '../services/llm/types.ts';
+import { normalizeApplicationRecords } from './applicationRecords.ts';
+import { isCanonicalResumeProfileLibrary, isValidUserProfileInput, normalizeResumeProfileLibrary, normalizeUserProfileData, updateActiveUserProfile } from './resumeProfiles.ts';
+import { withResumeProfileMutation } from './resumeProfileRepository.ts';
+import { normalizeWebDAVServerUrl } from '../services/webdav.ts';
+
+export const STORAGE_KEYS = {
+  USER_PROFILE: 'userProfile',
+  RESUME_PROFILE_LIBRARY: 'resumeProfileLibrary',
+  SETTINGS: 'settings',
+  LLM_CONFIG: 'llmConfig',
+  WEBDAV_CONFIG: 'webdavConfig',
+  SYNC_METADATA: 'syncMetadata',
+  APPLICATION_RECORDS: 'applicationRecords',
+} as const;
+
+export function normalizeUserProfile(profile: unknown): UserProfile {
+  const normalized = normalizeUserProfileData(profile);
+  return {
+    ...normalized,
+    personal: normalized.personal || {},
+    customInformation: normalized.customInformation || [],
+    languages: normalized.languages || [],
+    education: (normalized.education || []).map(education => ({
+      ...education,
+      college: education.college || inferCollegeForKnownMockData(education.school, education.major),
+      educationType: education.educationType || '统招全日制',
+    })),
+    skills: normalized.skills || [],
+    certifications: normalized.certifications || [],
+  } as UserProfile;
+}
+
+function inferCollegeForKnownMockData(school?: string, major?: string): string {
+  if (school === '北京大学' && major === '计算机科学与技术') return '信息科学技术学院';
+  if (school === '浙江大学' && major === '软件工程') return '软件学院';
+  if (school === '北京市第四中学') return '理科实验班';
+  return '';
+}
+
+export class StorageService {
+  static async getResumeProfileLibrary(): Promise<ResumeProfileLibrary> {
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.RESUME_PROFILE_LIBRARY,
+      STORAGE_KEYS.USER_PROFILE,
+    ]);
+    const storedLibrary = result[STORAGE_KEYS.RESUME_PROFILE_LIBRARY];
+    const legacyProfile = result[STORAGE_KEYS.USER_PROFILE] as UserProfile | undefined;
+    if (isCanonicalResumeProfileLibrary(storedLibrary)) {
+      return storedLibrary;
+    }
+
+    let library: ResumeProfileLibrary;
+    try {
+      library = normalizeResumeProfileLibrary(storedLibrary, legacyProfile);
+    } catch (error) {
+      if (!isValidUserProfileInput(legacyProfile)) {
+        throw new Error(`简历资料库已损坏且无法从旧版资料恢复：${error instanceof Error ? error.message : '格式无效'}`);
+      }
+      library = normalizeResumeProfileLibrary(undefined, legacyProfile);
+    }
+    await this.saveResumeProfileLibrary(library);
+    return library;
+  }
+
+  static async saveResumeProfileLibrary(library: ResumeProfileLibrary): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.RESUME_PROFILE_LIBRARY]: library });
+  }
+
+  // 获取用户资料
+  static async getUserProfile(): Promise<UserProfile | null> {
+    try {
+      const library = await this.getResumeProfileLibrary();
+      return library.profiles.find(profile => profile.id === library.activeProfileId)?.profile ?? null;
+    } catch (error) {
+      console.error('Failed to get user profile:', error);
+      return null;
+    }
+  }
+
+  // 保存用户资料（兼容旧调用方，实际写入活动简历）
+  static async saveUserProfile(profile: UserProfile): Promise<boolean> {
+    try {
+      await withResumeProfileMutation(async () => {
+        const library = await this.getResumeProfileLibrary();
+        await this.saveResumeProfileLibrary(updateActiveUserProfile(library, profile, new Date().toISOString()));
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to save user profile:', error);
+      return false;
+    }
+  }
+
+  // 更新部分用户资料（兼容旧调用方，实际写入活动简历）
+  static async updateUserProfile(updates: Partial<UserProfile>): Promise<boolean> {
+    try {
+      await withResumeProfileMutation(async () => {
+        const library = await this.getResumeProfileLibrary();
+        const activeProfile = library.profiles.find(profile => profile.id === library.activeProfileId);
+        if (!activeProfile) throw new Error('当前简历不存在');
+        await this.saveResumeProfileLibrary(updateActiveUserProfile(library, { ...activeProfile.profile, ...updates }, new Date().toISOString()));
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to update user profile:', error);
+      return false;
+    }
+  }
+
+  // 清除所有数据
+  static async clearAll(): Promise<boolean> {
+    try {
+      await chrome.storage.local.clear();
+      return true;
+    } catch (error) {
+      console.error('Failed to clear storage:', error);
+      return false;
+    }
+  }
+
+  // 获取存储使用情况
+  static async getStorageUsage(): Promise<{ used: number; quota: number }> {
+    try {
+      const bytesInUse = await chrome.storage.local.getBytesInUse();
+      return {
+        used: bytesInUse,
+        quota: chrome.storage.local.QUOTA_BYTES
+      };
+    } catch (error) {
+      console.error('Failed to get storage usage:', error);
+      return { used: 0, quota: 0 };
+    }
+  }
+
+  // 获取 LLM 配置
+  static async getLLMConfig(): Promise<LLMConfig | null> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.LLM_CONFIG);
+      const config = result[STORAGE_KEYS.LLM_CONFIG] as LLMConfig | undefined;
+      return config ? normalizeLLMConfig(config) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // 保存 LLM 配置
+  static async saveLLMConfig(config: LLMConfig): Promise<boolean> {
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.LLM_CONFIG]: normalizeLLMConfig(config),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  static async getSettings(): Promise<SettingsData | null> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
+    return (result[STORAGE_KEYS.SETTINGS] as SettingsData) || null;
+  }
+
+  static async saveSettings(settings: SettingsData): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: settings });
+  }
+
+  static async getBackupData(): Promise<BackupData> {
+    const [resumeProfileLibrary, result] = await Promise.all([
+      this.getResumeProfileLibrary(),
+      chrome.storage.local.get([
+        STORAGE_KEYS.LLM_CONFIG,
+        STORAGE_KEYS.SETTINGS,
+        STORAGE_KEYS.APPLICATION_RECORDS,
+      ]),
+    ]);
+    return {
+      resumeProfileLibrary,
+      // 同步哈希必须保持旧配置的原始形态；读取 AI 配置时再做运行时规范化。
+      // 否则升级后仅因补上缺省字段就会被误判为“本地业务数据已修改”。
+      llmConfig: (result[STORAGE_KEYS.LLM_CONFIG] as LLMConfig | undefined) || null,
+      settings: (result[STORAGE_KEYS.SETTINGS] as SettingsData | undefined) || null,
+      applicationRecords: normalizeApplicationRecords(
+        result[STORAGE_KEYS.APPLICATION_RECORDS] as ApplicationRecord[] | undefined,
+      ),
+    };
+  }
+
+  static async replaceBusinessData(data: BackupData, webdavConfig?: WebDAVConfig | null): Promise<void> {
+    return withResumeProfileMutation(async () => {
+    const values: Record<string, unknown> = {};
+    const removals: string[] = [];
+    const entries = [
+      [STORAGE_KEYS.RESUME_PROFILE_LIBRARY, data.resumeProfileLibrary],
+      [STORAGE_KEYS.LLM_CONFIG, data.llmConfig],
+      [STORAGE_KEYS.SETTINGS, data.settings],
+    ] as const;
+
+    for (const [key, value] of entries) {
+      if (value === null) removals.push(key);
+      else values[key] = value;
+    }
+
+    if (Object.hasOwn(data, 'applicationRecords')) {
+      if (data.applicationRecords === null) removals.push(STORAGE_KEYS.APPLICATION_RECORDS);
+      else values[STORAGE_KEYS.APPLICATION_RECORDS] = normalizeApplicationRecords(data.applicationRecords);
+    }
+
+    // webdavConfig 仅在本地导入时恢复，同步下载不会覆盖本地凭据。
+    if (webdavConfig !== undefined) {
+      if (webdavConfig === null) removals.push(STORAGE_KEYS.WEBDAV_CONFIG);
+      else values[STORAGE_KEYS.WEBDAV_CONFIG] = webdavConfig;
+    }
+
+    if (Object.keys(values).length > 0) await chrome.storage.local.set(values);
+    if (removals.length > 0) await chrome.storage.local.remove(removals);
+    });
+  }
+
+  static async getWebDAVConfig(): Promise<WebDAVConfig | null> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.WEBDAV_CONFIG);
+    const stored = result[STORAGE_KEYS.WEBDAV_CONFIG] as
+      | WebDAVConfig
+      | { enabled: boolean; fileUrl?: string; username: string; password: string }
+      | undefined;
+    if (!stored) return null;
+
+    const rawUrl = 'serverUrl' in stored ? stored.serverUrl : stored.fileUrl;
+    if (!rawUrl) return { ...stored, serverUrl: '' };
+    return {
+      enabled: stored.enabled,
+      serverUrl: normalizeWebDAVServerUrl(rawUrl),
+      username: stored.username,
+      password: stored.password,
+    };
+  }
+
+  static async saveWebDAVConfig(config: WebDAVConfig): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.WEBDAV_CONFIG]: config });
+  }
+
+  static async getSyncMetadata(): Promise<SyncMetadata> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.SYNC_METADATA);
+    return (result[STORAGE_KEYS.SYNC_METADATA] as SyncMetadata) || { status: 'idle' };
+  }
+
+  static async saveSyncMetadata(metadata: SyncMetadata): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.SYNC_METADATA]: metadata });
+  }
+
+  static async applyRemoteBusinessData(data: BackupData): Promise<void> {
+    await this.replaceBusinessData(data);
+  }
+
+  static async getApplicationRecords(): Promise<ApplicationRecord[]> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.APPLICATION_RECORDS);
+    return normalizeApplicationRecords(result[STORAGE_KEYS.APPLICATION_RECORDS] as ApplicationRecord[] | undefined);
+  }
+
+  static async saveApplicationRecords(records: ApplicationRecord[]): Promise<void> {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.APPLICATION_RECORDS]: normalizeApplicationRecords(records),
+    });
+  }
+
+  static async createApplicationRecord(record: ApplicationRecord): Promise<void> {
+    const records = await this.getApplicationRecords();
+    await this.saveApplicationRecords([...records, record]);
+  }
+
+  static async updateApplicationRecord(record: ApplicationRecord): Promise<void> {
+    const records = await this.getApplicationRecords();
+    await this.saveApplicationRecords(records.map(existingRecord => (
+      existingRecord.id === record.id ? record : existingRecord
+    )));
+  }
+
+  static async deleteApplicationRecord(id: string): Promise<void> {
+    const records = await this.getApplicationRecords();
+    await this.saveApplicationRecords(records.filter(record => record.id !== id));
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "job-application-helper-mobile-cloudflare",
+  "private": true,
+  "version": "1.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "generate:secrets": "node scripts/generate-secrets.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm test && wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "^4.130.0"
+  },
+  "dependencies": {
+    "@block65/webcrypto-web-push": "^2.0.0"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
+  }
+}

@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1450" viewBox="0 0 1500 1450">
+  <rect width="1500" height="1450" fill="white"/>
+  <text x="750" y="44" text-anchor="middle" font-size="22" font-weight="bold" fill="#111" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">Job-Application-Helper 自用增强业务用例图</text>
+
+  <!-- 连线：求职者域，域 cy=360（120/200/280/360/440/520/600 的中位数） -->
+  <line x1="78" y1="360" x2="108" y2="360" stroke="#aaaaaa" stroke-width="1.2"/>
+  <line x1="290" y1="360" x2="360" y2="120" stroke="#cccccc"/>
+  <line x1="290" y1="360" x2="360" y2="200" stroke="#cccccc"/>
+  <line x1="290" y1="360" x2="360" y2="280" stroke="#cccccc"/>
+  <line x1="290" y1="360" x2="360" y2="360" stroke="#cccccc"/>
+  <line x1="290" y1="360" x2="360" y2="440" stroke="#cccccc"/>
+  <line x1="290" y1="360" x2="360" y2="520" stroke="#cccccc"/>
+  <line x1="290" y1="360" x2="360" y2="600" stroke="#cccccc"/>
+  <line x1="560" y1="280" x2="600" y2="240" stroke="#cccccc"/>
+  <line x1="560" y1="280" x2="600" y2="320" stroke="#cccccc"/>
+
+  <!-- Actor：求职者，W=360 -->
+  <circle cx="60" cy="342" r="18" fill="none" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="360" x2="60" y2="400" stroke="#333" stroke-width="2"/>
+  <line x1="35" y1="378" x2="85" y2="378" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="400" x2="38" y2="430" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="400" x2="82" y2="430" stroke="#333" stroke-width="2"/>
+  <text x="60" y="450" text-anchor="middle" font-size="14" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">求职者</text>
+
+  <ellipse cx="200" cy="360" rx="90" ry="32" fill="#7b5ea7" stroke="#7b5ea7" stroke-width="1.5"/>
+  <text x="200" y="365" text-anchor="middle" font-size="13" fill="white" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">个人求职管理域</text>
+
+  <ellipse cx="460" cy="120" rx="100" ry="28" fill="#f8f8f8" stroke="#bbbbbb" stroke-width="1.5"/>
+  <text x="460" y="125" text-anchor="middle" font-size="13" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">管理与切换简历</text>
+  <ellipse cx="460" cy="200" rx="100" ry="28" fill="#f8f8f8" stroke="#bbbbbb" stroke-width="1.5"/>
+  <text x="460" y="205" text-anchor="middle" font-size="13" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">规则与 AI 填表</text>
+  <ellipse cx="460" cy="280" rx="100" ry="28" fill="#fff8e6" stroke="#e07b00" stroke-width="1.5"/>
+  <text x="460" y="285" text-anchor="middle" font-size="13" fill="#7a4a00" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">配置并切换多个模型</text>
+  <ellipse cx="460" cy="360" rx="100" ry="28" fill="#f8f8f8" stroke="#bbbbbb" stroke-width="1.5"/>
+  <text x="460" y="365" text-anchor="middle" font-size="13" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">管理投递记录</text>
+  <ellipse cx="460" cy="440" rx="100" ry="28" fill="#fff8e6" stroke="#e07b00" stroke-width="1.5"/>
+  <text x="460" y="445" text-anchor="middle" font-size="13" fill="#7a4a00" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">提取岗位与 JD</text>
+  <ellipse cx="460" cy="520" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="525" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">确认真实投递成功</text>
+  <ellipse cx="460" cy="600" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="605" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">查看时间线并人工纠错</text>
+
+  <ellipse cx="700" cy="240" rx="100" ry="28" fill="#fff8e6" stroke="#e07b00" stroke-width="1.5"/>
+  <text x="700" y="245" text-anchor="middle" font-size="13" fill="#7a4a00" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">OpenAI Responses API</text>
+  <ellipse cx="700" cy="320" rx="100" ry="28" fill="#f8f8f8" stroke="#bbbbbb" stroke-width="1.5"/>
+  <text x="700" y="325" text-anchor="middle" font-size="13" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">兼容 Chat Completions</text>
+
+  <!-- 连线：自动化域，域 cy=880 -->
+  <line x1="78" y1="880" x2="108" y2="880" stroke="#aaaaaa" stroke-width="1.2"/>
+  <line x1="290" y1="880" x2="360" y2="800" stroke="#cccccc"/>
+  <line x1="290" y1="880" x2="360" y2="880" stroke="#cccccc"/>
+  <line x1="290" y1="880" x2="360" y2="960" stroke="#cccccc"/>
+
+  <circle cx="60" cy="862" r="18" fill="none" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="880" x2="60" y2="920" stroke="#333" stroke-width="2"/>
+  <line x1="35" y1="898" x2="85" y2="898" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="920" x2="38" y2="950" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="920" x2="82" y2="950" stroke="#333" stroke-width="2"/>
+  <text x="60" y="970" text-anchor="middle" font-size="14" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">浏览器调度器</text>
+
+  <ellipse cx="200" cy="880" rx="90" ry="32" fill="#3a7bd5" stroke="#3a7bd5" stroke-width="1.5"/>
+  <text x="200" y="885" text-anchor="middle" font-size="13" fill="white" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">自动化与审计域</text>
+  <ellipse cx="460" cy="800" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="805" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">检测提交成功信号</text>
+  <ellipse cx="460" cy="880" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="885" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">定时扫描招聘邮件</text>
+  <ellipse cx="460" cy="960" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="965" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">幂等更新事件与状态</text>
+
+  <!-- 连线：邮件接入域，域 cy=1240 -->
+  <line x1="78" y1="1240" x2="108" y2="1240" stroke="#aaaaaa" stroke-width="1.2"/>
+  <line x1="290" y1="1240" x2="360" y2="1160" stroke="#cccccc"/>
+  <line x1="290" y1="1240" x2="360" y2="1240" stroke="#cccccc"/>
+  <line x1="290" y1="1240" x2="360" y2="1320" stroke="#cccccc"/>
+  <line x1="560" y1="1320" x2="600" y2="1280" stroke="#cccccc"/>
+  <line x1="560" y1="1320" x2="600" y2="1360" stroke="#cccccc"/>
+
+  <circle cx="60" cy="1222" r="18" fill="none" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="1240" x2="60" y2="1280" stroke="#333" stroke-width="2"/>
+  <line x1="35" y1="1258" x2="85" y2="1258" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="1280" x2="38" y2="1310" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="1280" x2="82" y2="1310" stroke="#333" stroke-width="2"/>
+  <text x="60" y="1330" text-anchor="middle" font-size="14" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">邮箱服务</text>
+
+  <ellipse cx="200" cy="1240" rx="90" ry="32" fill="#2e8b57" stroke="#2e8b57" stroke-width="1.5"/>
+  <text x="200" y="1245" text-anchor="middle" font-size="13" fill="white" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">只读邮件接入域</text>
+  <ellipse cx="460" cy="1160" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="1165" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">OAuth API 同步</text>
+  <ellipse cx="460" cy="1240" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="1237" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">Native Messaging</text>
+  <text x="460" y="1253" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">读取 IMAP</text>
+  <ellipse cx="460" cy="1320" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="460" y="1325" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">生成标准化邮件</text>
+  <ellipse cx="700" cy="1280" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="700" y="1285" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">规则 / AI 分类</text>
+  <ellipse cx="700" cy="1360" rx="100" ry="28" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="700" y="1365" text-anchor="middle" font-size="13" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">匹配原投递记录</text>
+
+  <!-- 图例 -->
+  <rect x="1040" y="70" width="370" height="340" rx="8" fill="white" stroke="#cccccc" stroke-width="1.2"/>
+  <text x="1225" y="100" text-anchor="middle" font-size="14" font-weight="bold" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">图例</text>
+  <ellipse cx="1140" cy="135" rx="70" ry="22" fill="#f8f8f8" stroke="#bbbbbb" stroke-width="1.5"/>
+  <text x="1140" y="140" text-anchor="middle" font-size="12" fill="#222" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">已有用例</text>
+  <ellipse cx="1305" cy="135" rx="70" ry="22" fill="#fff8e6" stroke="#e07b00" stroke-width="1.5"/>
+  <text x="1305" y="140" text-anchor="middle" font-size="12" fill="#7a4a00" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">改造用例</text>
+  <ellipse cx="1140" cy="190" rx="70" ry="22" fill="white" stroke="#4a7fd4" stroke-width="1.5"/>
+  <text x="1140" y="195" text-anchor="middle" font-size="12" fill="#1a4a8a" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">新增用例</text>
+  <ellipse cx="1305" cy="190" rx="70" ry="22" fill="#7b5ea7" stroke="#7b5ea7" stroke-width="1.5"/>
+  <text x="1305" y="195" text-anchor="middle" font-size="12" fill="white" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">求职管理域</text>
+  <ellipse cx="1140" cy="245" rx="70" ry="22" fill="#3a7bd5" stroke="#3a7bd5" stroke-width="1.5"/>
+  <text x="1140" y="250" text-anchor="middle" font-size="12" fill="white" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">自动化域</text>
+  <ellipse cx="1305" cy="245" rx="70" ry="22" fill="#2e8b57" stroke="#2e8b57" stroke-width="1.5"/>
+  <text x="1305" y="250" text-anchor="middle" font-size="12" fill="white" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">邮件接入域</text>
+  <text x="1225" y="310" text-anchor="middle" font-size="12" fill="#555" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">状态以 2026-09-03 工作区为基线</text>
+  <text x="1225" y="335" text-anchor="middle" font-size="12" fill="#555" font-family="Noto Sans SC, Microsoft YaHei, sans-serif">“改造”表示本次已落地或需继续增强</text>
+</svg>
