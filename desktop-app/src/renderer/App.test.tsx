@@ -16,6 +16,7 @@ import type {
 } from '../shared/contracts.ts';
 import { desktopRecordInput, saveDesktopRecord } from '../domain/records.ts';
 import App from './App.tsx';
+import { MailInboxView } from './MailInboxView.tsx';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -372,6 +373,109 @@ test('招聘邮件未经人工确认不改状态，确认时提交所选公司�
   } finally {
     await act(async () => renderer.unmount());
     globalThis.window = originalWindow;
+  }
+});
+
+test('后台补齐邮件截止时间后当前审核卡片立即刷新且不覆盖人工时间', async () => {
+  const current = record({ id: 'anker-record', companyName: '安克创新', jobTitle: 'AI应用工程师-深圳' });
+  const review: DesktopMailReview = {
+    id: 'anker-review',
+    accountId: 'mail-account-1',
+    messageId: 'message-anker',
+    from: '安克创新招聘',
+    subject: '【安克创新校招测评】2027届校园招聘',
+    receivedAt: '2026-09-11T05:28:29.000Z',
+    summary: '链接有效期5天，请合理安排时间。',
+    category: 'assessment_invite',
+    suggestedStage: 'assessment',
+    companyName: '安克创新',
+    candidateRecordIds: [current.id],
+    state: 'pending',
+  };
+  const inbox = { status: 'idle' as const, accounts: [], reviews: [review], pendingCount: 1 };
+  const renderView = (nextReview: DesktopMailReview) => (
+    <MailInboxView
+      inbox={{ ...inbox, reviews: [nextReview] }}
+      records={[current]}
+      busy={false}
+      onScan={() => {}}
+      onConfirm={() => {}}
+      onIgnore={() => {}}
+      onIgnoreMany={() => {}}
+      onOpenUrl={() => {}}
+    />
+  );
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(renderView(review)); });
+
+  try {
+    const timeInput = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 安排时间` });
+    assert.equal(timeInput().props.value, '');
+    await act(async () => {
+      renderer.update(renderView({ ...review, deadlineAt: '2026-09-16T13:28:29' }));
+    });
+    assert.equal(timeInput().props.value, '2026-09-16T13:28');
+
+    await act(async () => timeInput().props.onChange({ target: { value: '2026-09-15T20:00' } }));
+    await act(async () => {
+      renderer.update(renderView({ ...review, deadlineAt: '2026-09-16T13:29:00' }));
+    });
+    assert.equal(timeInput().props.value, '2026-09-15T20:00');
+  } finally {
+    await act(async () => renderer.unmount());
+  }
+});
+
+test('未匹配邮件可按公司或岗位搜索投递记录且后台匹配后自动选中唯一岗位', async () => {
+  const kingdee = record({ id: 'kingdee-record', companyName: '金蝶软件（中国）有限公司', jobTitle: 'AI agent开发工程师（深圳）' });
+  const anker = record({ id: 'anker-record', companyName: '安克创新', jobTitle: 'AI应用工程师-深圳' });
+  const review: DesktopMailReview = {
+    id: 'kingdee-review',
+    accountId: 'mail-account-1',
+    messageId: 'message-kingdee',
+    from: '招聘小秘书',
+    subject: '来自金蝶2027届校园招聘的笔试邀请',
+    receivedAt: '2026-09-11T07:24:21.000Z',
+    summary: '请完成线上笔试。',
+    category: 'assessment_invite',
+    suggestedStage: 'writtenTest',
+    candidateRecordIds: [],
+    deadlineAt: '2026-09-13T15:24:21',
+    state: 'pending',
+  };
+  const inbox = { status: 'idle' as const, accounts: [], reviews: [review], pendingCount: 1 };
+  const renderView = (nextReview: DesktopMailReview) => (
+    <MailInboxView
+      inbox={{ ...inbox, reviews: [nextReview] }}
+      records={[anker, kingdee]}
+      busy={false}
+      onScan={() => {}}
+      onConfirm={() => {}}
+      onIgnore={() => {}}
+      onIgnoreMany={() => {}}
+      onOpenUrl={() => {}}
+    />
+  );
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(renderView(review)); });
+
+  try {
+    const search = renderer.root.findByProps({ 'aria-label': `${review.subject} 搜索投递公司或岗位` });
+    const select = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 对应投递岗位` });
+    await act(async () => search.props.onChange({ target: { value: '金蝶' } }));
+    assert.match(text(select()), /金蝶软件（中国）有限公司/);
+    assert.doesNotMatch(text(select()), /安克创新/);
+
+    await act(async () => {
+      renderer.update(renderView({
+        ...review,
+        companyName: kingdee.companyName,
+        candidateRecordIds: [kingdee.id],
+      }));
+    });
+    assert.equal(select().props.value, kingdee.id);
+  } finally {
+    await act(async () => renderer.unmount());
   }
 });
 

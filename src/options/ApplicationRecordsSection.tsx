@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   APPLICATION_RECORD_STATUSES,
+  buildApplicationRecordsClipboardContent,
   compareApplicationRecordSubmissionTime,
   normalizeApplicationRecord,
   normalizeApplicationRecords,
 } from '../shared/applicationRecords.ts';
+import {
+  buildApplicationRecordsWorkbook,
+  buildApplicationRecordsWorkbookFilename,
+} from '../shared/applicationRecordsWorkbook.ts';
 import { MessageService } from '../shared/message.ts';
 import type {
   ApplicationRecord,
@@ -71,6 +76,16 @@ function defaultSort(records: ApplicationRecord[]): ApplicationRecord[] {
 
 function cloneRecord(record: ApplicationRecord): ApplicationRecord {
   return { ...record };
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  if (typeof document === 'undefined') return;
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(objectUrl);
 }
 
 function normalizeKeyword(value: string): string {
@@ -176,7 +191,7 @@ export function ApplicationRecordsSection({
 }: ApplicationRecordsSectionProps): React.JSX.Element {
   const [records, setRecords] = useState<ApplicationRecord[]>(() => defaultSort(initialRecords));
   const [loading, setLoading] = useState(initialRecords.length === 0);
-  const [busyAction, setBusyAction] = useState<'import' | 'export' | 'save' | 'delete' | null>(null);
+  const [busyAction, setBusyAction] = useState<'import' | 'export' | 'copy' | 'save' | 'delete' | null>(null);
   const [errorText, setErrorText] = useState('');
   const [notice, setNotice] = useState<NoticeState>(null);
   const [sortState, setSortState] = useState<SortState>([]);
@@ -369,18 +384,46 @@ export function ApplicationRecordsSection({
       return;
     }
 
-    if (typeof document !== 'undefined') {
-      const blob = new Blob([response.data.csv], { type: 'text/csv;charset=utf-8' });
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = response.data.filename;
-      link.click();
-      URL.revokeObjectURL(objectUrl);
-    }
+    downloadBlob(new Blob([response.data.csv], { type: 'text/csv;charset=utf-8' }), response.data.filename);
 
     setBusyAction(null);
     setNotice({ type: 'success', text: `CSV 已导出：${response.data.filename}` });
+  };
+
+  const handleCopyTable = async () => {
+    setBusyAction('copy');
+    setErrorText('');
+    try {
+      const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+      if (!clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error('当前浏览器不支持带超链接的表格复制');
+      }
+      const content = buildApplicationRecordsClipboardContent(records);
+      await clipboard.write([new ClipboardItem({
+        'text/html': new Blob([content.html], { type: 'text/html' }),
+        'text/plain': new Blob([content.text], { type: 'text/plain' }),
+      })]);
+      setNotice({ type: 'success', text: '表格已复制，可直接粘贴到腾讯文档，链接会保持可点击' });
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : '复制表格失败');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleExportWorkbook = async () => {
+    setBusyAction('export');
+    setErrorText('');
+    try {
+      const workbook = await buildApplicationRecordsWorkbook(records);
+      const filename = buildApplicationRecordsWorkbookFilename();
+      downloadBlob(workbook, filename);
+      setNotice({ type: 'success', text: `Excel 已导出：${filename}` });
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : '导出 Excel 失败');
+    } finally {
+      setBusyAction(null);
+    }
   };
 
   const handleImportChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -484,7 +527,7 @@ export function ApplicationRecordsSection({
         <div>
           <h2 className="section-title">投递记录</h2>
           <p className="application-records-description">
-            统一查看、筛选、排序、编辑、删除，并支持 CSV 导入导出已有投递记录。
+            统一查看、筛选、排序、编辑、删除，支持 CSV 导入导出、复制到在线文档及 Excel 导出。
           </p>
         </div>
         <div className="application-records-actions">
@@ -506,10 +549,28 @@ export function ApplicationRecordsSection({
           <button
             type="button"
             className="btn btn-secondary"
+            onClick={() => void handleCopyTable()}
+            disabled={busyAction !== null}
+            title="粘贴到腾讯文档后链接可直接点击"
+          >
+            复制表格
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
             onClick={() => void handleExport()}
             disabled={busyAction !== null}
           >
             导出 CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void handleExportWorkbook()}
+            disabled={busyAction !== null}
+            title="导入腾讯文档后保留可点击链接"
+          >
+            导出 Excel
           </button>
         </div>
       </div>

@@ -101,6 +101,15 @@ export const APPLICATION_RECORD_CSV_V2_HEADERS = [
   'updatedAt',
 ] as const;
 
+export const APPLICATION_RECORD_TABLE_CSV_HEADERS = [
+  '公司',
+  '岗位',
+  '链接',
+  '状态',
+  '投递日期',
+  '工作地点',
+] as const;
+
 const SINGLE_INTERVIEW_APPLICATION_RECORD_CSV_V2_HEADERS = [
   'schemaVersion',
   'id',
@@ -575,6 +584,64 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
+function spreadsheetSafeText(value: string): string {
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
+function restoreSpreadsheetSafeText(value: string): string {
+  return /^'[=+\-@]/.test(value) ? value.slice(1) : value;
+}
+
+function validHttpUrl(value: string): string {
+  const candidate = normalizeText(value);
+  if (!candidate) return '';
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? candidate : '';
+  } catch {
+    return '';
+  }
+}
+
+function excelHyperlinkCell(value: string): string {
+  const url = validHttpUrl(value);
+  if (!url) return spreadsheetSafeText(normalizeText(value));
+  const escapedUrl = url.replaceAll('"', '""');
+  return `=HYPERLINK("${escapedUrl}","${escapedUrl}")`;
+}
+
+function sourceUrlFromTableCell(value: string): string {
+  const candidate = normalizeText(value);
+  const formulaMatch = candidate.match(/^=HYPERLINK\("((?:""|[^"])*)"\s*[,;]\s*"((?:""|[^"])*)"\)$/i);
+  const formulaUrl = formulaMatch?.[1]?.replaceAll('""', '"') ?? '';
+  const formulaLabel = formulaMatch?.[2]?.replaceAll('""', '"') ?? '';
+  const isSupportedFormula = Boolean(formulaMatch)
+    && (formulaLabel === formulaUrl || formulaLabel === '打开投递页面');
+  const sourceUrl = isSupportedFormula ? formulaUrl : restoreSpreadsheetSafeText(candidate);
+  return validHttpUrl(sourceUrl);
+}
+
+function sourceSiteFromUrl(value: string): string {
+  try {
+    return new URL(value).host;
+  } catch {
+    return '';
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function singleLineTableText(value: string): string {
+  return value.replace(/[\t\r\n]+/g, ' ').trim();
+}
+
 function parseCsvRows(csv: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -681,6 +748,56 @@ export function serializeApplicationRecordsCsv(
   return `\uFEFF${lines.join('\r\n')}`;
 }
 
+/** Human-readable CSV used by the manual download action. */
+export function serializeApplicationRecordsTableCsv(records: readonly ApplicationRecord[]): string {
+  const lines = [
+    APPLICATION_RECORD_TABLE_CSV_HEADERS.join(','),
+    ...records.map((rawRecord) => {
+      const record = normalizeApplicationRecord(rawRecord);
+      return [
+        spreadsheetSafeText(record.companyName),
+        spreadsheetSafeText(record.jobTitle),
+        excelHyperlinkCell(record.sourceUrl),
+        spreadsheetSafeText(record.status),
+        spreadsheetSafeText(record.appliedAt),
+        spreadsheetSafeText(record.location),
+      ].map(escapeCsvCell).join(',');
+    }),
+  ];
+  return `\uFEFF${lines.join('\r\n')}`;
+}
+
+export function buildApplicationRecordsClipboardContent(
+  records: readonly ApplicationRecord[],
+): { html: string; text: string } {
+  const normalizedRecords = records.map(normalizeApplicationRecord);
+  const textRows = [
+    APPLICATION_RECORD_TABLE_CSV_HEADERS.join('\t'),
+    ...normalizedRecords.map(record => [
+      record.companyName,
+      record.jobTitle,
+      record.sourceUrl,
+      record.status,
+      record.appliedAt,
+      record.location,
+    ].map(singleLineTableText).join('\t')),
+  ];
+  const htmlRows = normalizedRecords.map((record) => {
+    const url = validHttpUrl(record.sourceUrl);
+    const linkCell = url
+      ? `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`
+      : escapeHtml(record.sourceUrl);
+    return `<tr><td>${escapeHtml(record.companyName)}</td><td>${escapeHtml(record.jobTitle)}</td><td>${linkCell}</td><td>${escapeHtml(record.status)}</td><td>${escapeHtml(record.appliedAt)}</td><td>${escapeHtml(record.location)}</td></tr>`;
+  });
+  const headerCells = APPLICATION_RECORD_TABLE_CSV_HEADERS
+    .map(header => `<th>${escapeHtml(header)}</th>`)
+    .join('');
+  return {
+    html: `<table><thead><tr>${headerCells}</tr></thead><tbody>${htmlRows.join('')}</tbody></table>`,
+    text: textRows.join('\r\n'),
+  };
+}
+
 function recordFromCsvValues(values: Record<string, string>, version: ApplicationRecordCsvVersion): ApplicationRecord {
   const resumeSnapshot = version === 2 && (values.resumeProfileName || values.resumeFileName)
     ? { profileName: values.resumeProfileName, fileName: values.resumeFileName }
@@ -722,7 +839,9 @@ export function parseApplicationRecordsCsv(csv: string): {
 
   const [headerRow, ...dataRows] = rows;
   const headers = headerRow.map(header => header.trim());
+  const isTableCsv = headerEquals(headers, APPLICATION_RECORD_TABLE_CSV_HEADERS);
   const version: ApplicationRecordCsvVersion | null = headerEquals(headers, APPLICATION_RECORD_CSV_HEADERS)
+    || isTableCsv
     ? 1
     : headerEquals(headers, APPLICATION_RECORD_CSV_V2_HEADERS)
       || headerEquals(headers, SINGLE_INTERVIEW_APPLICATION_RECORD_CSV_V2_HEADERS)
@@ -731,14 +850,30 @@ export function parseApplicationRecordsCsv(csv: string): {
       ? 2
       : null;
   if (!version) {
-    const error = 'CSV 表头不合法，必须使用固定的 V1 或 V2 列头';
+    const error = 'CSV 表头不合法，必须使用固定的 V1 或 V2 列头，或 6 列中文列头';
     return { records: [], warnings: [error], error };
   }
 
   const records: ApplicationRecord[] = [];
   dataRows.forEach((row, index) => {
     const rowNumber = index + 2;
-    const values = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex] ?? '']));
+    const rawValues = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex] ?? '']));
+    const tableSourceUrl = isTableCsv ? sourceUrlFromTableCell(rawValues['链接']) : '';
+    if (isTableCsv && rawValues['链接'].trim() && !tableSourceUrl) {
+      warnings.push(`第 ${rowNumber} 行链接不是有效的 HTTP/HTTPS 地址，已留空`);
+    }
+    const values = isTableCsv ? {
+      companyName: restoreSpreadsheetSafeText(rawValues['公司']),
+      jobTitle: restoreSpreadsheetSafeText(rawValues['岗位']),
+      sourceSite: sourceSiteFromUrl(tableSourceUrl),
+      sourceUrl: tableSourceUrl,
+      status: restoreSpreadsheetSafeText(rawValues['状态']),
+      notes: '',
+      appliedAt: restoreSpreadsheetSafeText(rawValues['投递日期']),
+      location: restoreSpreadsheetSafeText(rawValues['工作地点']),
+      createdAt: '',
+      updatedAt: '',
+    } : rawValues;
     if (version === 2 && !['2', 'v2', 'V2'].includes(values.schemaVersion)) {
       warnings.push(`第 ${rowNumber} 行缺少有效的 CSV V2 schemaVersion`);
       return;

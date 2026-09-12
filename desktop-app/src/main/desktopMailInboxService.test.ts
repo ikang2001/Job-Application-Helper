@@ -182,6 +182,89 @@ test('无法匹配公司的测评邮件仍进入人工审核', async () => {
   assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, []);
 });
 
+test('已有待审核邮件根据链接有效期补齐截止时间且不重新读取旧邮件', async () => {
+  const client = new FakeNativeMailClient();
+  client.listMessages = async (_accountId, options) => ({
+    messages: [],
+    cursor: options.cursor ?? { uidValidity: '1', lastUid: 0 },
+    hasMore: false,
+  });
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [record('AI应用工程师-深圳', 'https://talent.anker-in.com/job', '安克创新')],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+    mailInbox: {
+      status: 'idle',
+      accounts: [],
+      cursors: { 'account-1': { uidValidity: '1', lastUid: 401 } },
+      reviews: [{
+        id: 'mail-401',
+        accountId: 'account-1',
+        messageId: '401',
+        from: '安克创新招聘',
+        subject: '【安克创新校招测评】2027届校园招聘',
+        receivedAt: '2026-09-11T06:00:00.000Z',
+        summary: '请用简历中的姓名、邮箱完成认证;链接有效期5天,请合理安排时间。',
+        category: 'assessment_invite',
+        suggestedStage: 'assessment',
+        companyName: '安克创新',
+        candidateRecordIds: [],
+        state: 'pending',
+      }],
+    },
+  });
+
+  assert.equal(client.getMessageCalls, 0);
+  assert.equal(next.mailInbox?.reviews[0]?.deadlineAt, '2026-09-16T06:00:00.000Z');
+  assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 401 });
+});
+
+test('已有未匹配的金蝶邮件根据品牌简称补齐对应岗位且不重新读取旧邮件', async () => {
+  const client = new FakeNativeMailClient();
+  client.listMessages = async (_accountId, options) => ({
+    messages: [],
+    cursor: options.cursor ?? { uidValidity: '1', lastUid: 0 },
+    hasMore: false,
+  });
+  const kingdee = record(
+    'AI agent开发工程师（深圳）',
+    'https://app.mokahr.com/job/kingdee',
+    '金蝶软件（中国）有限公司',
+  );
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [kingdee],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+    mailInbox: {
+      status: 'idle',
+      accounts: [],
+      cursors: { 'account-1': { uidValidity: '1', lastUid: 501 } },
+      reviews: [{
+        id: 'mail-501',
+        accountId: 'account-1',
+        messageId: '501',
+        from: '招聘小秘书 <kingdeehr-no-reply@mail.mokahr.com>',
+        subject: '来自金蝶2027届校园招聘的笔试邀请',
+        receivedAt: '2026-09-11T07:24:21.000Z',
+        summary: '恭喜你通过简历筛选，进入金蝶2027届校招线上笔试环节。',
+        category: 'assessment_invite',
+        suggestedStage: 'writtenTest',
+        candidateRecordIds: [],
+        state: 'pending',
+      }],
+    },
+  });
+
+  assert.equal(client.getMessageCalls, 0);
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '金蝶软件（中国）有限公司');
+  assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, [kingdee.id]);
+  assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 501 });
+});
+
 test('已有扫描游标会原样传给邮箱组件且不会读取旧邮件正文', async () => {
   const client = new FakeNativeMailClient();
   client.listMessages = async (_accountId, options) => {

@@ -113,7 +113,7 @@ function extractLabeledDate(text: string, label: RegExp): string | undefined {
 }
 
 function extractDeadline(text: string, receivedAt: string): string | undefined {
-  const label = /deadline|complete by|due by|截止|失效|到期|有效期(?:至|到)|请于.*前/i;
+  const label = /deadline|complete by|due by|截止|失效|到期|有效期(?:至|到)|请于.*前|前(?:完成|提交|参加|作答|测评|笔试|面试)/i;
   return extractDateBeforeLabel(text, label)
     ?? extractLabeledDate(text, label)
     ?? extractRelativeDeadline(text, receivedAt);
@@ -127,7 +127,8 @@ function extractDateBeforeLabel(text: string, label: RegExp): string | undefined
 }
 
 function extractRelativeDeadline(text: string, receivedAt: string): string | undefined {
-  const match = text.match(/(?:收到(?:本)?邮件(?:后)?|自(?:邮件)?发送(?:后)?|请|须|需|务必)?[^\n\r]{0,30}?(\d{1,3})\s*(小时|天|日)(?:之内|以内|内)/i);
+  const match = text.match(/(?:收到(?:本)?邮件(?:后)?|自(?:邮件)?发送(?:后)?|请|须|需|务必)?[^\n\r]{0,30}?(\d{1,3})\s*(小时|天|日)(?:之内|以内|内)/i)
+    ?? text.match(/(?:链接|邀请|测评|测试|考试)?\s*有效期\s*(?:为|是|[:：])?\s*(\d{1,3})\s*(小时|天|日)/i);
   if (!match) return undefined;
   const amount = Number(match[1]);
   const received = Date.parse(receivedAt);

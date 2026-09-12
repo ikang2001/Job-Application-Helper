@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { ApplicationRecord } from '../../../src/shared/types.ts';
 import { DESKTOP_MAIL_REVIEW_STAGES } from '../domain/desktopMail.ts';
 import type {
@@ -136,8 +136,12 @@ function MailReviewCard(props: {
   onSelectionChange(selected: boolean): void;
   onOpenUrl(url: string): void;
 }) {
-  const candidates = candidateRecords(props.review, props.records);
-  const [recordId, setRecordId] = useState(candidates.length === 1 ? candidates[0]!.id : '');
+  const recordCandidates = useMemo(
+    () => candidateRecords(props.review, props.records),
+    [props.records, props.review.candidateRecordIds],
+  );
+  const [recordId, setRecordId] = useState(recordCandidates.length === 1 ? recordCandidates[0]!.id : '');
+  const [recordQuery, setRecordQuery] = useState('');
   const [stage, setStage] = useState<DesktopMailReviewStage | ''>(props.review.suggestedStage ?? '');
   const [scheduleType, setScheduleType] = useState<'start' | 'deadline'>(
     defaultReviewScheduleType(props.review, props.review.suggestedStage),
@@ -150,6 +154,20 @@ function MailReviewCard(props: {
   const selectedRecord = props.records.find(record => record.id === props.review.selectedRecordId);
   const selectedStage = DESKTOP_MAIL_REVIEW_STAGES.find(item => item.value === props.review.selectedStage)?.label;
   const suggested = DESKTOP_MAIL_REVIEW_STAGES.find(item => item.value === props.review.suggestedStage)?.label;
+  const searchedCandidates = filterRecordCandidates(recordCandidates, recordQuery);
+  const selectedCandidate = recordCandidates.find(record => record.id === recordId);
+  const visibleCandidates = selectedCandidate && !searchedCandidates.some(record => record.id === selectedCandidate.id)
+    ? [selectedCandidate, ...searchedCandidates]
+    : searchedCandidates;
+
+  useEffect(() => {
+    if (recordCandidates.length === 1) setRecordId(current => current || recordCandidates[0]!.id);
+  }, [recordCandidates]);
+
+  useEffect(() => {
+    const suggestedTime = reviewTimeValue(props.review, scheduleType);
+    if (suggestedTime) setScheduledAt(current => current || suggestedTime);
+  }, [props.review.deadlineAt, props.review.extractedAt, scheduleType]);
 
   return (
     <article className={`mail-review-card state-${props.review.state}`}>
@@ -181,7 +199,21 @@ function MailReviewCard(props: {
 
       {props.review.state === 'pending' ? (
         <div className="mail-review-decision">
-          <label><span>对应公司的投递岗位</span><select aria-label={`${props.review.subject} 对应投递岗位`} value={recordId} onChange={event => setRecordId(event.target.value)}><option value="">请选择要更新的岗位</option>{candidates.map(record => <option key={record.id} value={record.id}>{record.companyName} · {record.jobTitle} · 当前 {record.status}</option>)}</select></label>
+          <div className="mail-record-picker">
+            <span>对应公司的投递岗位</span>
+            <label className="mail-record-search">
+              <SearchIcon />
+              <input
+                type="search"
+                aria-label={`${props.review.subject} 搜索投递公司或岗位`}
+                value={recordQuery}
+                placeholder="搜索投递过的公司或岗位"
+                onChange={event => setRecordQuery(event.target.value)}
+              />
+            </label>
+            <select aria-label={`${props.review.subject} 对应投递岗位`} value={recordId} onChange={event => setRecordId(event.target.value)}><option value="">请选择要更新的岗位</option>{visibleCandidates.map(record => <option key={record.id} value={record.id}>{record.companyName} · {record.jobTitle} · 当前 {record.status}</option>)}</select>
+            {recordQuery && <small className={searchedCandidates.length ? '' : 'is-missing'}>{searchedCandidates.length ? `找到 ${searchedCandidates.length} 个投递岗位` : '没有找到，请换个公司名或岗位关键词'}</small>}
+          </div>
           <label><span>邮件阶段（系统已预选，请确认）</span><select aria-label={`${props.review.subject} 邮件阶段`} value={stage} onChange={event => {
             const nextStage = event.target.value as DesktopMailReviewStage | '';
             const nextType = defaultReviewScheduleType(props.review, nextStage || props.review.suggestedStage);
@@ -288,6 +320,14 @@ function candidateRecords(review: DesktopMailReview, records: readonly Applicati
     left.companyName.localeCompare(right.companyName, 'zh-CN')
     || left.jobTitle.localeCompare(right.jobTitle, 'zh-CN')
   ));
+}
+
+function filterRecordCandidates(records: readonly ApplicationRecord[], query: string): ApplicationRecord[] {
+  const keyword = query.normalize('NFKC').trim().toLocaleLowerCase();
+  if (!keyword) return [...records];
+  return records.filter(record => [record.companyName, record.jobTitle].some(value => (
+    value.normalize('NFKC').toLocaleLowerCase().includes(keyword)
+  )));
 }
 
 function FilterButton(props: { value: ReviewFilter; current: ReviewFilter; onSelect(value: ReviewFilter): void; children: React.ReactNode }) {
