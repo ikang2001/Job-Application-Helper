@@ -1138,6 +1138,8 @@ textarea:focus {
 .application-records-actions {
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
 }
 
@@ -1770,6 +1772,11 @@ textarea:focus {
   .application-records-header,
   .data-heading-actions {
     display: grid;
+  }
+
+  .application-records-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .application-records-actions .btn,

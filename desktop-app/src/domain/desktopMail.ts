@@ -221,7 +221,7 @@ function normalizeSearchText(value: string): string {
 }
 
 function normalizeCompany(value: string): string {
-  return normalizeSearchText(value)
+  return normalizeSearchText(value.replace(/[（(][^（）()]{1,20}[）)]/gu, ''))
     .replace(/(?:股份)?有限公司|有限责任公司|集团|公司|corporation|corp|inc|ltd|limited|llc/gi, '');
 }
 

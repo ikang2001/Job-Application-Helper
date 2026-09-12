@@ -5,7 +5,7 @@ import {
   mergeApplicationRecordUpdate,
   normalizeApplicationRecord,
   parseApplicationRecordsCsv,
-  serializeApplicationRecordsCsv,
+  serializeApplicationRecordsTableCsv,
 } from '../shared/applicationRecords.ts';
 import {
   mutateApplicationRecords,
@@ -211,7 +211,7 @@ export async function handleExportApplicationRecordsCsv(): Promise<MessageRespon
   return {
     success: true,
     data: {
-      csv: serializeApplicationRecordsCsv(records),
+      csv: serializeApplicationRecordsTableCsv(records),
       filename: buildExportFilename(),
     },
   };

@@ -1,7 +1,7 @@
 {
   "name": "job-application-helper",
   "private": true,
-  "version": "1.1.32",
+  "version": "1.1.35",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -22,7 +22,7 @@
     "check": "npm run lint && npm test && npm run build",
     "check:all": "npm run check && npm run check:native && npm run check:desktop",
     "lint": "oxlint",
-    "test:application-records:core": "tsx --test src/shared/applicationRecords.test.ts src/content/applicationRecordMetadata.test.ts src/background/applicationRecords.test.ts src/services/localDesktopSync.test.ts",
+    "test:application-records:core": "tsx --test src/shared/applicationRecords.test.ts src/shared/applicationRecordsWorkbook.test.ts src/content/applicationRecordMetadata.test.ts src/background/applicationRecords.test.ts src/services/localDesktopSync.test.ts",
     "test:application-records:ui": "tsx --test src/popup/applicationRecordsEntry.test.tsx src/application-records/App.test.tsx src/options/ApplicationRecordsSection.test.tsx",
     "test:application-records": "npm run test:application-records:core && npm run test:application-records:ui",
     "test:enhancements:shared": "tsx --test src/shared/applicationEvents.test.ts src/shared/applicationRecordRepository.test.ts",
@@ -39,6 +39,7 @@
   "dependencies": {
     "@types/chrome": "^0.2.2",
     "antd": "^6.5.0",
+    "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
     "marked": "^18.0.6",
     "pdfjs-dist": "^6.2.108",

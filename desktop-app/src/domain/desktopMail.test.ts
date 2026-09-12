@@ -89,6 +89,22 @@ test('邮件简称可匹配带地域前缀和法律后缀的公司名称', () =>
   assert.deepEqual(match.recordIds, [transsion.id]);
 });
 
+test('邮件中的品牌简称可匹配公司名括号内含地域的投递记录', () => {
+  const kingdee = record(
+    '金蝶软件（中国）有限公司',
+    'AI agent开发工程师（深圳）',
+    'https://app.mokahr.com/job/kingdee',
+  );
+  const match = matchDesktopMailCompany(
+    '来自金蝶2027届校园招聘的笔试邀请',
+    undefined,
+    [kingdee],
+  );
+
+  assert.equal(match.companyName, '金蝶软件（中国）有限公司');
+  assert.deepEqual(match.recordIds, [kingdee.id]);
+});
+
 test('纯测评通知和 AI 面试邀约可给出建议，但仍需人工选择', () => {
   assert.equal(suggestedDesktopMailStage('assessment_invite', '汇川技术校园招聘测评通知'), 'assessment');
   assert.equal(suggestedDesktopMailStage('assessment_invite', '编程笔试通知'), 'writtenTest');

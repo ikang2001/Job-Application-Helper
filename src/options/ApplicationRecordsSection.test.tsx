@@ -124,12 +124,14 @@ test('表格列头渲染公司、岗位、链接等明确列名', () => {
   assert.match(html, /岗位/);
   assert.match(html, /链接/);
   assert.match(html, /状态/);
+  assert.match(html, /复制表格/);
+  assert.match(html, /导出 Excel/);
   assert.doesNotMatch(html, /来源站点/);
 });
 
 test('投递记录说明文案已移除“在设置页”字样', () => {
   const html = renderToStaticMarkup(<ApplicationRecordsSection initialRecords={records} />);
-  assert.match(html, /统一查看、筛选、排序、编辑、删除，并支持 CSV 导入导出已有投递记录。/);
+  assert.match(html, /统一查看、筛选、排序、编辑、删除，支持 CSV 导入导出、复制到在线文档及 Excel 导出。/);
   assert.doesNotMatch(html, /在设置页统一查看/);
 });
 

@@ -83,6 +83,22 @@ test('extractor recognizes absolute expiry and relative completion deadlines', (
   });
   assert.equal(relative.deadlineAt, '2026-09-11T06:00:00.000Z');
 
+  const linkValidity = extractRecruitmentData({
+    ...interviewEmail,
+    subject: '【安克创新校招测评】2027届校园招聘',
+    receivedAt: '2026-09-11T06:00:00.000Z',
+    text: '请用简历中的姓名、邮箱完成认证;链接有效期5天,请合理安排时间。',
+  });
+  assert.equal(linkValidity.deadlineAt, '2026-09-16T06:00:00.000Z');
+
+  const deadlineBeforeCompletion = extractRecruitmentData({
+    ...interviewEmail,
+    subject: '三一集团校园招聘 AI 测评通知',
+    receivedAt: '2026-09-11T13:00:49.000Z',
+    text: '请您在收到本邮件后，合理安排时间，并于 2026-09-18 23:59 前完成测评。',
+  });
+  assert.equal(deadlineBeforeCompletion.deadlineAt, '2026-09-18T23:59:00');
+
   const validityWindow = extractRecruitmentData({
     ...interviewEmail,
     subject: '在线测评邀请——传音控股2027届校园招聘',

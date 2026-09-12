@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   APPLICATION_RECORD_CSV_HEADERS,
   APPLICATION_RECORD_CSV_V2_HEADERS,
+  APPLICATION_RECORD_TABLE_CSV_HEADERS,
+  buildApplicationRecordsClipboardContent,
   createApplicationRecordDraft,
   findApplicationRecordDuplicate,
   findApplicationRecordDuplicateMatch,
@@ -11,6 +13,7 @@ import {
   normalizeApplicationRecordUrl,
   parseApplicationRecordsCsv,
   serializeApplicationRecordsCsv,
+  serializeApplicationRecordsTableCsv,
 } from './applicationRecords.ts';
 import { createApplicationEvent } from './applicationEvents.ts';
 import { StorageService, STORAGE_KEYS } from './storage.ts';
@@ -250,6 +253,84 @@ test('CSV 固定保留 V1，默认导出显式 V2 + BOM/CRLF 并往返摘要字�
 
   const legacyCsv = serializeApplicationRecordsCsv([input], 1);
   assert.equal(parseApplicationRecordsCsv(legacyCsv).version, 1);
+});
+
+test('手动导出 CSV 只包含 6 列中文字段，Excel 链接显示网址、可复制且可重新导入', () => {
+  assert.deepEqual(APPLICATION_RECORD_TABLE_CSV_HEADERS, [
+    '公司', '岗位', '链接', '状态', '投递日期', '工作地点',
+  ]);
+  const input = record({
+    companyName: '示例,公司',
+    jobTitle: '后端工程师',
+    sourceSite: 'jobs.example.com',
+    sourceUrl: 'https://jobs.example.com/apply?id=1&from=csv',
+    notes: '这段备注不应导出',
+    appliedAt: '2026-09-12',
+    location: '深圳',
+  });
+
+  const csv = serializeApplicationRecordsTableCsv([input]);
+  assert.equal(csv.startsWith('\uFEFF公司,岗位,链接,状态,投递日期,工作地点\r\n'), true);
+  assert.match(csv, /HYPERLINK\(""https:\/\/jobs\.example\.com\/apply\?id=1&from=csv"",""https:\/\/jobs\.example\.com\/apply\?id=1&from=csv""\)/);
+  assert.doesNotMatch(csv, /schemaVersion|applicationId|sourceSite|这段备注不应导出/);
+
+  const parsed = parseApplicationRecordsCsv(csv);
+  assert.equal(parsed.error, undefined);
+  assert.equal(parsed.version, 1);
+  assert.equal(parsed.records[0]?.companyName, '示例,公司');
+  assert.equal(parsed.records[0]?.sourceSite, 'jobs.example.com');
+  assert.equal(parsed.records[0]?.sourceUrl, input.sourceUrl);
+  assert.equal(parsed.records[0]?.appliedAt, '2026-09-12');
+  assert.equal(parsed.records[0]?.location, '深圳');
+
+  const legacyLinkCsv = [
+    APPLICATION_RECORD_TABLE_CSV_HEADERS.join(','),
+    '示例公司,后端工程师,"=HYPERLINK(""https://jobs.example.com/apply?id=1&from=csv"",""打开投递页面"")",已投递,2026-09-12,深圳',
+  ].join('\r\n');
+  assert.equal(parseApplicationRecordsCsv(legacyLinkCsv).records[0]?.sourceUrl, input.sourceUrl);
+});
+
+test('6 列中文 CSV 可导入普通 URL，且不执行非 HTTP 公式或其他表格公式', () => {
+  const rawUrlCsv = [
+    APPLICATION_RECORD_TABLE_CSV_HEADERS.join(','),
+    '腾讯,后台开发,https://careers.tencent.com/job/1,已投递,2026-09-12,深圳',
+  ].join('\r\n');
+  assert.equal(parseApplicationRecordsCsv(rawUrlCsv).records[0]?.sourceUrl, 'https://careers.tencent.com/job/1');
+
+  const unsafeCsv = [
+    APPLICATION_RECORD_TABLE_CSV_HEADERS.join(','),
+    '测试公司,测试岗位,"=HYPERLINK(""javascript:alert(1)"",""打开投递页面"")",已投递,2026-09-12,北京',
+    '测试公司2,测试岗位2,=2+2,已投递,2026-09-12,北京',
+  ].join('\r\n');
+  const unsafe = parseApplicationRecordsCsv(unsafeCsv);
+  assert.equal(unsafe.records.length, 2);
+  assert.equal(unsafe.records[0]?.sourceUrl, '');
+  assert.equal(unsafe.records[1]?.sourceUrl, '');
+  assert.equal(unsafe.warnings.length, 2);
+
+  const serialized = serializeApplicationRecordsTableCsv([record({
+    companyName: '=2+2',
+    sourceUrl: '=HYPERLINK("javascript:alert(1)","x")',
+  })]);
+  assert.match(serialized, /'=2\+2/);
+  assert.match(serialized, /'=HYPERLINK/);
+});
+
+test('复制表格同时生成 HTML 超链接和纯文本网址', () => {
+  const content = buildApplicationRecordsClipboardContent([record({
+    companyName: '测试<&公司',
+    jobTitle: '开发工程师',
+    sourceUrl: 'https://jobs.example.com/apply?id=1&from=clipboard',
+    notes: '不应复制的备注',
+    appliedAt: '2026-09-12',
+    location: '深圳',
+  })]);
+
+  assert.match(content.html, /<a href="https:\/\/jobs\.example\.com\/apply\?id=1&amp;from=clipboard">https:\/\/jobs\.example\.com\/apply\?id=1&amp;from=clipboard<\/a>/);
+  assert.match(content.html, /测试&lt;&amp;公司/);
+  assert.doesNotMatch(content.html, /不应复制的备注/);
+  assert.match(content.text, /^公司\t岗位\t链接\t状态\t投递日期\t工作地点\r\n/);
+  assert.match(content.text, /https:\/\/jobs\.example\.com\/apply\?id=1&from=clipboard/);
 });
 
 test('旧版 V2 CSV 的单面试列继续导入为一面', () => {

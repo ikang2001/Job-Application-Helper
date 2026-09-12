@@ -50,7 +50,11 @@ export class DesktopMailInboxService {
 
   async scan(data: DesktopData): Promise<DesktopData> {
     const accounts = await this.client.listAccounts();
-    const current = data.mailInbox ?? emptyInbox();
+    const stored = data.mailInbox ?? emptyInbox();
+    const current = {
+      ...stored,
+      reviews: stored.reviews.map(review => enrichPendingReview(review, data.records)),
+    };
     if (!accounts.length) {
       return {
         ...data,
@@ -243,6 +247,39 @@ function mergeReviews(
   return [...byId.values()]
     .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt))
     .slice(0, MAX_STORED_REVIEWS);
+}
+
+function enrichPendingReview(
+  review: DesktopMailReview,
+  records: readonly DesktopData['records'][number][],
+): DesktopMailReview {
+  if (review.state !== 'pending') return review;
+  const extracted = extractRecruitmentData({
+    id: review.messageId,
+    accountId: review.accountId,
+    provider: 'imap',
+    from: { address: '' },
+    to: [],
+    subject: review.subject,
+    receivedAt: review.receivedAt,
+    text: review.summary,
+  });
+  const match = review.candidateRecordIds.length
+    ? undefined
+    : matchDesktopMailCompany(
+      `${review.subject}\n${review.from}\n${review.summary}`,
+      extracted.companyName,
+      records,
+    );
+  const deadlineAt = review.deadlineAt ?? extracted.deadlineAt;
+  const companyName = match?.companyName ?? review.companyName;
+  const candidateRecordIds = match?.recordIds.length ? match.recordIds : review.candidateRecordIds;
+  if (
+    deadlineAt === review.deadlineAt
+    && companyName === review.companyName
+    && candidateRecordIds === review.candidateRecordIds
+  ) return review;
+  return { ...review, deadlineAt, companyName, candidateRecordIds };
 }
 
 function reviewId(accountId: string, messageId: string): string {

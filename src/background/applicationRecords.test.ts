@@ -117,7 +117,9 @@ test('背景层 CRUD 与 CSV handler 可独立运行', async () => {
     const exportResponse = await handleExportApplicationRecordsCsv();
     assert.equal(exportResponse.success, true);
     assert.match(exportResponse.data?.filename || '', /^application-records-/);
-    assert.match(exportResponse.data?.csv || '', /schemaVersion,id,companyName,jobTitle/);
+    assert.match(exportResponse.data?.csv || '', /^\uFEFF公司,岗位,链接,状态,投递日期,工作地点\r\n/);
+    assert.match(exportResponse.data?.csv || '', /HYPERLINK\(""https:\/\/jobs\.bytedance\.com\/campus"",""https:\/\/jobs\.bytedance\.com\/campus""\)/);
+    assert.doesNotMatch(exportResponse.data?.csv || '', /schemaVersion|notes|sourceSite/);
 
     const importResponse = await handleImportApplicationRecordsCsv(exportResponse.data!.csv);
     assert.equal(importResponse.success, true);
