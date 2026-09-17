@@ -101,6 +101,6 @@ export function PipelineRail({
 
 function statusClass(status: ApplicationRecordStatus): string {
   if (status === 'offer') return 'is-offer';
-  if (['已拒绝', '主动放弃', '职位关闭', '终止'].includes(status)) return 'is-terminal';
+  if (['主动放弃', '职位关闭', '终止'].includes(status)) return 'is-terminal';
   return '';
 }

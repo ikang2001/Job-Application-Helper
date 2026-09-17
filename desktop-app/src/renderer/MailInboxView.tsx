@@ -154,7 +154,10 @@ function MailReviewCard(props: {
   const selectedRecord = props.records.find(record => record.id === props.review.selectedRecordId);
   const selectedStage = DESKTOP_MAIL_REVIEW_STAGES.find(item => item.value === props.review.selectedStage)?.label;
   const suggested = DESKTOP_MAIL_REVIEW_STAGES.find(item => item.value === props.review.suggestedStage)?.label;
-  const searchedCandidates = filterRecordCandidates(recordCandidates, recordQuery);
+  const searchedCandidates = useMemo(
+    () => filterRecordCandidates(recordCandidates, recordQuery),
+    [recordCandidates, recordQuery],
+  );
   const selectedCandidate = recordCandidates.find(record => record.id === recordId);
   const visibleCandidates = selectedCandidate && !searchedCandidates.some(record => record.id === selectedCandidate.id)
     ? [selectedCandidate, ...searchedCandidates]
@@ -208,7 +211,12 @@ function MailReviewCard(props: {
                 aria-label={`${props.review.subject} 搜索投递公司或岗位`}
                 value={recordQuery}
                 placeholder="搜索投递过的公司或岗位"
-                onChange={event => setRecordQuery(event.target.value)}
+                onChange={event => {
+                  const nextQuery = event.target.value;
+                  const matches = filterRecordCandidates(recordCandidates, nextQuery);
+                  setRecordQuery(nextQuery);
+                  if (nextQuery.trim() && matches.length === 1) setRecordId(matches[0]!.id);
+                }}
               />
             </label>
             <select aria-label={`${props.review.subject} 对应投递岗位`} value={recordId} onChange={event => setRecordId(event.target.value)}><option value="">请选择要更新的岗位</option>{visibleCandidates.map(record => <option key={record.id} value={record.id}>{record.companyName} · {record.jobTitle} · 当前 {record.status}</option>)}</select>

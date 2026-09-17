@@ -67,10 +67,11 @@ test('旧记录所有状态迁移为事件，保留未知字段且规范化幂�
   const cases = [
     ['待投', '待投递', 'application_created'],
     ['已投递', '已投递', 'applied'],
+    ['等待', '等待中', 'status_override'],
     ['已笔试', '笔试/测评', 'assessment_invite'],
     ['面试', '面试中', 'interview'],
     ['Offer', 'offer', 'offer'],
-    ['拒绝', '已拒绝', 'rejection'],
+    ['拒绝', '主动放弃', 'withdrawn'],
     ['放弃', '主动放弃', 'withdrawn'],
     ['岗位关闭', '职位关闭', 'job_closed'],
     ['终止', '终止', 'status_override'],

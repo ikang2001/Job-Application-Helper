@@ -157,7 +157,12 @@ function buildReview(
   const extracted = extractRecruitmentData(email);
   const classification = classifyRecruitmentEmail(email);
   const content = `${message.subject}\n${message.from.name ?? ''}\n${message.from.address}\n${message.text}`;
-  const companyMatch = matchDesktopMailCompany(content, extracted.companyName, data.records);
+  const companyMatch = matchDesktopMailMessageCompany(
+    message.subject,
+    content,
+    extracted.companyName,
+    data.records,
+  );
   const suggestedStage = suggestedDesktopMailStage(classification.category, content, message.subject);
   if (
     !hasScheduledRecruitmentArrangement(message.subject, message.text)
@@ -266,7 +271,8 @@ function enrichPendingReview(
   });
   const match = review.candidateRecordIds.length
     ? undefined
-    : matchDesktopMailCompany(
+    : matchDesktopMailMessageCompany(
+      review.subject,
       `${review.subject}\n${review.from}\n${review.summary}`,
       extracted.companyName,
       records,
@@ -280,6 +286,18 @@ function enrichPendingReview(
     && candidateRecordIds === review.candidateRecordIds
   ) return review;
   return { ...review, deadlineAt, companyName, candidateRecordIds };
+}
+
+function matchDesktopMailMessageCompany(
+  subject: string,
+  content: string,
+  extractedCompany: string | undefined,
+  records: readonly DesktopData['records'][number][],
+) {
+  const subjectMatch = matchDesktopMailCompany(subject, extractedCompany, records);
+  return subjectMatch.recordIds.length
+    ? subjectMatch
+    : matchDesktopMailCompany(content, extractedCompany, records);
 }
 
 function reviewId(accountId: string, messageId: string): string {

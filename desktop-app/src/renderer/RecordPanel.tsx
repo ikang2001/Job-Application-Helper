@@ -10,6 +10,7 @@ import type { DesktopRecordInput } from '../shared/contracts.ts';
 import { desktopRecordInput } from '../domain/records.ts';
 import { CloseIcon, ExternalIcon } from './Icons.tsx';
 import {
+  clearScheduleEntry,
   formatScheduleTime,
   RECRUITMENT_SCHEDULE_ROWS,
   scheduleEntry,
@@ -79,6 +80,12 @@ function RecordForm({
       recruitmentSchedule: updateScheduleEntry(form.recruitmentSchedule, row, field, value),
     });
   };
+  const clearSchedule = (row: RecruitmentScheduleRow) => {
+    onChange({
+      ...form,
+      recruitmentSchedule: clearScheduleEntry(form.recruitmentSchedule, row),
+    });
+  };
   return (
     <form className="record-form" onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
       <div className="form-grid">
@@ -95,25 +102,40 @@ function RecordForm({
               const entry = scheduleEntry(form.recruitmentSchedule, row);
               return (
                 <React.Fragment key={kind}>
-                  <label>
-                    <span>{label}时间</span>
+                  <div className="schedule-time-field">
+                    <div>
+                      <label htmlFor={`schedule-${kind}-time`}>{label}时间</label>
+                      <button
+                        type="button"
+                        className="schedule-clear-button"
+                        disabled={!entry.scheduledAt && !entry.url && !entry.timeKind && !entry.completedAt}
+                        aria-label={`清空${label}安排`}
+                        onClick={() => clearSchedule(row)}
+                      >
+                        清空
+                      </button>
+                    </div>
                     <input
+                      id={`schedule-${kind}-time`}
                       type="datetime-local"
                       value={entry.scheduledAt}
                       aria-label={`${label}时间`}
                       onChange={event => updateSchedule(row, 'scheduledAt', event.target.value)}
                     />
-                  </label>
+                  </div>
                   <label>
                     <span>{label}时间含义</span>
                     <select
                       value={entry.timeKind ?? ''}
                       aria-label={`${label}时间含义`}
-                      onChange={event => updateSchedule(
-                        row,
-                        'timeKind',
-                        event.target.value as RecruitmentScheduleEntry['timeKind'],
-                      )}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        updateSchedule(
+                          row,
+                          'timeKind',
+                          value === '' ? undefined : value as RecruitmentScheduleEntry['timeKind'],
+                        );
+                      }}
                     >
                       <option value="">未注明</option>
                       <option value="start">开始时间</option>

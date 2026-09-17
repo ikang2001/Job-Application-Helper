@@ -6,11 +6,16 @@ import {
   confirmDesktopMailReview,
   ignoreDesktopMailReviews,
   matchDesktopMailCompany,
+  statusForStage,
   suggestedDesktopMailStage,
 } from './desktopMail.ts';
 import { saveDesktopRecord } from './records.ts';
 
 const NOW = '2026-09-09T12:00:00.000Z';
+
+test('拒绝邮件合并到主动放弃状态', () => {
+  assert.equal(statusForStage('rejection'), '主动放弃');
+});
 
 function record(companyName: string, jobTitle: string, sourceUrl: string): ApplicationRecord {
   return saveDesktopRecord([], {

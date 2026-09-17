@@ -10,6 +10,7 @@ const GENERIC_SENDER_DOMAINS = new Set([
   'successfactors',
   'ashbyhq',
   'ibeisen',
+  'mokahr',
   'gmail',
   'outlook',
   'hotmail',
@@ -85,8 +86,8 @@ function companyFromSubject(subject: string): string | undefined {
   }
   const chineseCompany = firstCapture(subject, [
     /[—–-]+\s*([^\n\r|—–-]{2,60}?)(?=\s*(?:20\d{2}届)?(?:校园)?招聘)/i,
-    /来自\s*([^\n\r|]{2,60}?)\s*的(?:在线)?(?:测评|笔试|面试)(?:邀请|通知|安排|提醒)/i,
-    /^(?!在线(?:测评|笔试|面试))([^\n\r|—–-]{2,60}?)(?=\s*(?:20\d{2}届)?(?:校园招聘)?(?:在线)?(?:测评|笔试|面试)(?:邀请|通知|安排|提醒))/i,
+    /来自\s*([^\n\r|]{2,60}?)\s*的(?:在线)?(?:测评|笔试|面试|(?:业务)?(?:初面|一面|二面|三面|复面|终面))(?:邀请|通知|安排|提醒)/i,
+    /^(?!在线(?:测评|笔试|面试))([^\n\r|—–-]{2,60}?)(?=\s*(?:20\d{2}届)?(?:校园招聘)?(?:在线)?(?:测评|笔试|面试|(?:业务)?(?:初面|一面|二面|三面|复面|终面))(?:邀请|通知|安排|提醒))/i,
   ]);
   if (chineseCompany) return cleanCapturedValue(chineseCompany);
   const atCompany = subject.match(/\b(?:at|with)\s+([A-Z][A-Za-z0-9&.' -]{1,60})(?:\s*[-–—|]|$)/)?.[1];
@@ -127,7 +128,7 @@ function extractDateBeforeLabel(text: string, label: RegExp): string | undefined
 }
 
 function extractRelativeDeadline(text: string, receivedAt: string): string | undefined {
-  const match = text.match(/(?:收到(?:本)?邮件(?:后)?|自(?:邮件)?发送(?:后)?|请|须|需|务必)?[^\n\r]{0,30}?(\d{1,3})\s*(小时|天|日)(?:之内|以内|内)/i)
+  const match = text.match(/(?:收到(?:本)?邮件(?:后)?|自(?:邮件)?发送(?:后)?|请|须|需|务必)?[^\n\r]{0,30}?(\d{1,3})\s*(小时|天|日)\s*(?:之内|以内|内)/i)
     ?? text.match(/(?:链接|邀请|测评|测试|考试)?\s*有效期\s*(?:为|是|[:：])?\s*(\d{1,3})\s*(小时|天|日)/i);
   if (!match) return undefined;
   const amount = Number(match[1]);

@@ -189,7 +189,7 @@ export function statusForStage(stage: DesktopMailReviewStage): ApplicationRecord
   if (stage === 'writtenTest' || stage === 'assessment') return '笔试/测评';
   if (['ai', 'first', 'second', 'third', 'hr'].includes(stage)) return '面试中';
   if (stage === 'offer') return 'offer';
-  if (stage === 'rejection') return '已拒绝';
+  if (stage === 'rejection') return '主动放弃';
   return '职位关闭';
 }
 

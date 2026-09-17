@@ -7,6 +7,7 @@ import {
   createStatusOverrideEvent,
   deriveApplicationStatus,
   isApplicationEventSuppressed,
+  normalizeApplicationEvent,
   normalizeApplicationEvents,
   removeApplicationEvent,
   removeApplicationEventTombstone,
@@ -65,7 +66,7 @@ test('deriveApplicationStatus 忽略 note，并按 occurredAt/sourceKey 确定�
 test('终态不会被迟到的低优先级邮件回退，人工覆盖可显式恢复', () => {
   const rejected = event('rejection', '2026-08-03T00:00:00.000Z', 'email:rejection');
   const lateReceipt = event('application_received', '2026-08-04T00:00:00.000Z', 'email:receipt');
-  assert.equal(deriveApplicationStatus([lateReceipt, rejected]), '已拒绝');
+  assert.equal(deriveApplicationStatus([lateReceipt, rejected]), '主动放弃');
 
   const override = createStatusOverrideEvent(
     'r1',
@@ -74,6 +75,22 @@ test('终态不会被迟到的低优先级邮件回退，人工覆盖可显式�
     'restore-1',
   );
   assert.equal(deriveApplicationStatus([rejected, lateReceipt, override]), '面试中');
+});
+
+test('等待中可由人工覆盖表达，旧已拒绝覆盖兼容迁移为主动放弃', () => {
+  const waiting = createStatusOverrideEvent('r1', '等待中', '2026-08-04', 'waiting-1');
+  assert.equal(deriveApplicationStatus([waiting]), '等待中');
+
+  const legacyRejected = normalizeApplicationEvent({
+    type: 'status_override',
+    occurredAt: '2026-08-05',
+    source: 'manual',
+    title: '手动调整状态为已拒绝',
+    sourceKey: 'manual:r1:legacy-rejected',
+    metadata: { status: '已拒绝' },
+  }, 'r1');
+  assert.equal(legacyRejected.metadata?.status, '主动放弃');
+  assert.equal(deriveApplicationStatus([legacyRejected]), '主动放弃');
 });
 
 test('人工覆盖删除后回到自动事件状态，且同 sourceKey 只保留一条', () => {

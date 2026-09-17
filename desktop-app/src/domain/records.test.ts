@@ -62,6 +62,13 @@ test('桌面端新建记录生成手动生命周期事件', () => {
   assert.equal(saved.record.events[0]?.type, 'applied');
 });
 
+test('桌面端可新建等待中记录并保存状态覆盖事件', () => {
+  const saved = saveDesktopRecord([], input({ status: '等待中' }), NOW).record;
+  assert.equal(saved.status, '等待中');
+  assert.equal(saved.events[0]?.type, 'status_override');
+  assert.equal(saved.events[0]?.metadata?.status, '等待中');
+});
+
 test('桌面端更新状态保留旧事件并新增人工覆盖事件', () => {
   const created = saveDesktopRecord([], input(), NOW).record;
   const updated = saveDesktopRecord(

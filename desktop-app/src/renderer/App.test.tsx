@@ -465,6 +465,7 @@ test('未匹配邮件可按公司或岗位搜索投递记录且后台匹配后�
     await act(async () => search.props.onChange({ target: { value: '金蝶' } }));
     assert.match(text(select()), /金蝶软件（中国）有限公司/);
     assert.doesNotMatch(text(select()), /安克创新/);
+    assert.equal(select().props.value, kingdee.id);
 
     await act(async () => {
       renderer.update(renderView({
@@ -888,6 +889,49 @@ test('编辑安排可分别保存笔试、测评和每轮面试的时间与链�
         hr: { scheduledAt: values.HR面时间, url: values.HR面链接 },
       },
     });
+  } finally {
+    await act(async () => renderer.unmount());
+    globalThis.window = originalWindow;
+  }
+});
+
+test('编辑安排可手动清空已有笔试并将时间含义改为未注明', async () => {
+  const originalWindow = globalThis.window;
+  const current = record({
+    recruitmentSchedule: {
+      writtenTest: {
+        scheduledAt: '2026-09-15T16:20',
+        url: 'https://exam.example.com/written',
+        timeKind: 'deadline',
+      },
+    },
+  });
+  const initialState = state([current]);
+  let savedRecord: ApplicationRecord | undefined;
+  const api = desktopApi(initialState, { success: false, error: '未设置' });
+  api.saveRecord = async (input) => {
+    const saved = saveDesktopRecord(initialState.records, input, '2026-09-05T08:00:00.000Z');
+    savedRecord = saved.record;
+    return { success: true, data: { state: state(saved.records), recordId: saved.record.id } };
+  };
+  const renderer = await render(api);
+
+  try {
+    await act(async () => button(renderer, '编辑安排').props.onClick());
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': '笔试时间含义' }).props.onChange({ target: { value: '' } });
+    });
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': '笔试时间' }).props.onChange({ target: { value: '' } });
+    });
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': '笔试链接' }).props.onChange({ target: { value: '' } });
+    });
+    assert.equal(renderer.root.findByProps({ 'aria-label': '清空笔试安排' }).props.disabled, true);
+    await submitOpenForm(renderer);
+
+    assert.equal(savedRecord?.recruitmentSchedule, undefined);
+    assert.equal(renderer.root.findAllByProps({ role: 'dialog' }).length, 0);
   } finally {
     await act(async () => renderer.unmount());
     globalThis.window = originalWindow;

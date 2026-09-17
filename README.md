@@ -60,35 +60,138 @@
 - 手机同步只上传加密快照；配对链接中的解密密钥不会发送给 Worker。
 - 可选 WebDAV 用于跨电脑备份，使用 ETag 避免并发静默覆盖。
 
-## 普通用户安装
+## 普通用户手动安装（Windows）
 
-### 浏览器扩展
+目前桌面端、浏览器扩展和 Native Mail Companion 是三个独立发布物，还没有合并成一个安装器。推荐按“桌面端 → 浏览器扩展 → Native Companion”的顺序安装。
 
-1. 从 GitHub Releases 下载 `job-application-helper-extension.zip` 并解压。
-2. 打开 `chrome://extensions` 或 `edge://extensions`。
-3. 开启“开发者模式”，选择“加载已解压的扩展程序”。
-4. 选择刚才解压得到的目录，并将扩展固定到工具栏。
+### 1. 准备环境与下载文件
 
-浏览器不能直接加载 ZIP，必须先解压。
+支持环境：
 
-### Windows 桌面端
+- Windows 10 / 11 x64。
+- Microsoft Edge 或 Google Chrome 116+。
+- 仅安装 Native Companion 时需要 Node.js 22.12+ 和 npm；桌面端、浏览器扩展本身不要求单独安装 Node.js。
 
-从 Releases 下载最新的 `job-application-helper-desktop-*-setup.exe`。当前构建未使用商业代码签名证书，Windows 可能提示“未知发布者”；建议先用同名 `.sha256` 文件核对安装包完整性。
+从同一个 GitHub Release 下载需要的文件：
 
-桌面端负责投递管理、邮件审核与提醒；网页识别和自动填表仍由扩展负责。安装新版会复用原有本机数据，不需要先卸载旧版。
+| 文件 | 本地构建位置 | 是否必需 | 用途 |
+|---|---|---|---|
+| `job-application-helper-desktop-*-setup.exe` | `release/desktop/` | 推荐 | Windows 投递管理、邮件审核和提醒 |
+| `job-application-helper-extension.zip` | `release/` | 推荐 | 网页识别、简历资料和自动填表 |
+| `job-application-helper-native-mail-companion.zip` | `release/` | 按需 | QQ、163、126、通用 IMAP，以及扩展与桌面端本机同步 |
+| 对应的 `.sha256` 文件 | 与对应发布物同目录 | 推荐 | 检查下载文件是否完整 |
 
-### Native Mail Companion
+三个组件应尽量取自同一个 Release，避免新旧版本的数据结构或功能不一致。
 
-需要 IMAP 邮箱或扩展—桌面端本机同步时安装：
+### 2. 校验下载文件
 
-```bash
-cd native-mail-companion
-npm ci
-npm run check
-npm run install-host -- --browser edge --extension-id <你的扩展ID>
+在下载目录打开 PowerShell，计算文件的 SHA-256：
+
+```powershell
+Get-FileHash .\job-application-helper-desktop-*-setup.exe -Algorithm SHA256
+Get-FileHash .\job-application-helper-extension.zip -Algorithm SHA256
+Get-FileHash .\job-application-helper-native-mail-companion.zip -Algorithm SHA256
 ```
 
-Chrome 将 `edge` 改为 `chrome`。扩展 ID 可在浏览器扩展管理页查看。邮箱授权码保存在操作系统凭据存储中，不应写入源码或配置文件。
+再打开对应的 `.sha256` 文件，确认其中的哈希与 PowerShell 输出一致。没有下载某个可选组件时，可以跳过对应命令。
+
+### 3. 安装 Windows 桌面端
+
+1. 退出正在运行的旧版“秋招投递管理器”。
+2. 双击 `job-application-helper-desktop-*-setup.exe`。
+3. 按安装向导选择目录并完成安装。
+4. 从桌面或开始菜单启动“秋招投递管理器”。
+
+当前构建未使用商业代码签名证书，Windows 可能显示“未知发布者”。请先确认文件来自本项目 Release，并完成 SHA-256 校验。安装新版会复用原有本机数据，通常不需要先卸载旧版。
+
+桌面端负责投递管理、招聘邮箱审核和提醒；网页识别与自动填表仍由浏览器扩展负责。
+
+### 4. 安装 Edge / Chrome 浏览器扩展
+
+1. 把 `job-application-helper-extension.zip` 解压到一个长期保留的目录，例如 `D:\tools\job-application-helper-extension`。
+2. Edge 打开 `edge://extensions`；Chrome 打开 `chrome://extensions`。
+3. 打开页面上的“开发者模式”。
+4. 点击“加载解压缩的扩展”或“加载已解压的扩展程序”。
+5. 选择包含 `manifest.json` 的目录，而不是 ZIP 文件或它的上一级目录。
+6. 确认“秋招网申助手”已启用，并按需将它固定到浏览器工具栏。
+7. 打开扩展的“详细信息”，复制页面显示的 32 位扩展 ID；安装 Native Companion 时会用到。
+
+浏览器不能直接加载 ZIP。扩展加载完成后不要移动或删除解压目录；如果更换了目录或扩展 ID 发生变化，需要重新安装 Native Companion。
+
+### 5. 安装 Native Mail Companion（可选）
+
+如果只使用扩展填表和桌面端手工管理记录，可以暂时跳过本节。需要以下任一功能时再安装：
+
+- 在扩展或桌面端读取 QQ、163、126 或其他 IMAP TLS 邮箱。
+- 在浏览器扩展和桌面端之间自动同步投递记录。
+
+先确认 Node.js 版本：
+
+```powershell
+node --version
+npm --version
+```
+
+然后把 `job-application-helper-native-mail-companion.zip` 解压到长期保留的目录，在该目录打开 PowerShell 并执行：
+
+```powershell
+npm ci --omit=dev
+npm run install-host -- --browser edge --extension-id <32位扩展ID>
+```
+
+使用 Chrome 时将 `edge` 改为 `chrome`：
+
+```powershell
+npm run install-host -- --browser chrome --extension-id <32位扩展ID>
+```
+
+`<32位扩展ID>` 必须替换为扩展管理页显示的真实 ID，不要保留尖括号。安装完成后完全退出并重新打开浏览器和桌面端。
+
+Native Companion 的目录不能随意移动。安装脚本生成的启动器和浏览器注册信息会指向当前解压目录；移动后需要在新目录重新执行安装命令。更完整的组件说明见 [native-mail-companion/README.md](native-mail-companion/README.md)。
+
+### 6. 验证安装
+
+依次检查：
+
+1. 点击浏览器工具栏中的“秋招网申助手”，确认弹窗和设置页可以打开。
+2. 在扩展中保存一条测试投递记录，然后打开桌面端，确认记录能够出现在桌面列表中。
+3. 桌面端顶部显示“已与 Edge 本机同步”或对应的同步成功状态。
+4. 如已安装 Native Companion，在扩展中配置只读 IMAP 账号，再到桌面端“招聘邮箱”执行一次扫描。
+
+邮件账号应使用服务商提供的授权码或应用专用密码，不要把网页登录密码、授权码、API Key 或备份文件提交到代码仓库。
+
+### 7. 更新
+
+- **桌面端**：退出旧版后直接运行新版安装包，原有数据会继续保留。
+- **浏览器扩展**：保持原解压路径不变，用新版文件替换旧文件，然后在 `edge://extensions` 或 `chrome://extensions` 点击该扩展的“重新加载”。
+- **Native Companion**：用新版文件更新原目录，重新执行 `npm ci --omit=dev` 和对应的 `install-host` 命令，然后重启浏览器与桌面端。
+
+更新扩展后应再次检查扩展 ID。如果 ID 变化，必须使用新 ID 重新安装 Native Companion。
+
+### 8. 卸载
+
+1. 在 Windows“设置 → 应用 → 已安装的应用”中卸载“秋招投递管理器”。
+2. 在浏览器扩展管理页移除“秋招网申助手”。
+3. 在 Native Companion 目录执行对应命令，删除浏览器注册信息：
+
+```powershell
+npm run uninstall-host -- --browser edge
+# 或
+npm run uninstall-host -- --browser chrome
+```
+
+卸载程序不等于清除全部求职数据。手工删除应用数据目录前，请先通过桌面端或扩展导出 JSON 备份。
+
+### 常见安装问题
+
+| 现象 | 检查方法 |
+|---|---|
+| 浏览器无法选择 ZIP | 必须先解压，再选择包含 `manifest.json` 的目录 |
+| 找不到“加载已解压的扩展” | 先打开扩展管理页右上角的“开发者模式” |
+| 提示本地邮箱组件未安装 | 检查 Node.js 版本、是否执行过 `npm ci --omit=dev` 和 `install-host` |
+| Native Host 无法连接 | 核对安装命令中的浏览器类型和扩展 ID，移动过目录时重新安装 |
+| 扩展有记录但桌面端没有 | 重启两端并检查桌面端本机同步状态；确认 Native Companion 已安装 |
+| 更新扩展后功能仍是旧版 | 在扩展管理页点击“重新加载”，必要时重新打开相关招聘网页 |
 
 ## 基本使用
 
