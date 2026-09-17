@@ -66,14 +66,20 @@ function tryPowerShell() {
   ).status === 0;
 }
 
-function listArchiveEntries() {
-  const result = spawnSync('tar', ['-tf', archivePath], {
+function tryListArchive(command, args) {
+  const result = spawnSync(command, args, {
     cwd: projectRoot,
     encoding: 'utf8',
     shell: false,
   });
-  if (result.status !== 0) fail('无法读取 Native companion 压缩包');
-  return result.stdout
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+function listArchiveEntries() {
+  const output = tryListArchive('unzip', ['-Z1', archivePath])
+    ?? tryListArchive('tar', ['-tf', archivePath]);
+  if (output === undefined) fail('无法读取 Native companion 压缩包');
+  return output
     .split(/\r?\n/)
     .map(entry => entry.replaceAll('\\', '/').replace(/^\.\/?/, ''))
     .filter(Boolean);

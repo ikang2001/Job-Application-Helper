@@ -52,3 +52,18 @@ test('npm test 使用仓库内受版本控制的 tsx 依赖，而不是 npx 临�
   assert.match(contentConfig, /content\.js/);
   assert.match(postBuild, /content\.js 含顶层 import\/export/);
 });
+
+test('ZIP 产物优先使用 unzip 校验，并在不可用时回退 tar', async () => {
+  for (const scriptPath of [
+    'scripts/package-extension.js',
+    'scripts/package-native-companion.js',
+  ]) {
+    const script = await readFile(path.join(repoRoot, scriptPath), 'utf8');
+    const unzipCall = script.indexOf("tryListArchive('unzip', ['-Z1'");
+    const tarCall = script.indexOf("tryListArchive('tar', ['-tf'");
+
+    assert.notEqual(unzipCall, -1, `${scriptPath} 应使用 unzip -Z1 读取 ZIP`);
+    assert.notEqual(tarCall, -1, `${scriptPath} 应保留 tar -tf 回退`);
+    assert.ok(unzipCall < tarCall, `${scriptPath} 应优先使用 unzip，再回退 tar`);
+  }
+});
