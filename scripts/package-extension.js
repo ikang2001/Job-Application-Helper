@@ -86,14 +86,20 @@ if (!packed) {
   fail('打包失败：未找到可用的压缩工具。请在 macOS 使用 zip，或在 Windows 使用 PowerShell Compress-Archive。');
 }
 
-function listArchiveEntries() {
-  const result = spawnSync('tar', ['-tf', zipFile], {
+function tryListArchive(command, args) {
+  const result = spawnSync(command, args, {
     cwd: projectRoot,
     encoding: 'utf8',
     shell: false,
   });
-  if (result.status !== 0) fail('无法读取刚生成的扩展压缩包');
-  return result.stdout
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+function listArchiveEntries() {
+  const output = tryListArchive('unzip', ['-Z1', zipFile])
+    ?? tryListArchive('tar', ['-tf', zipFile]);
+  if (output === undefined) fail('无法读取刚生成的扩展压缩包');
+  return output
     .split(/\r?\n/)
     .map(entry => entry.replaceAll('\\', '/').replace(/^\.\/?/, ''))
     .filter(Boolean);
