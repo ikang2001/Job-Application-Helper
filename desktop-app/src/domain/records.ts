@@ -48,10 +48,10 @@ export interface CsvMergeResult {
 const STATUS_EVENT_TYPE: Record<ApplicationRecordStatus, ApplicationEventType> = {
   待投递: 'application_created',
   已投递: 'applied',
+  等待中: 'status_override',
   '笔试/测评': 'assessment_invite',
   面试中: 'interview',
   offer: 'offer',
-  已拒绝: 'rejection',
   主动放弃: 'withdrawn',
   职位关闭: 'job_closed',
   终止: 'status_override',
@@ -201,13 +201,14 @@ function validateHttpUrl(value: string, label: string): void {
 }
 
 function initialEvent(id: string, status: ApplicationRecordStatus, occurredAt: string) {
+  const type = STATUS_EVENT_TYPE[status];
   return createApplicationEvent({
-    type: STATUS_EVENT_TYPE[status],
+    type,
     occurredAt,
     source: 'manual',
     title: status === '待投递' ? '创建投递计划' : `手动记录：${status}`,
     sourceKey: `manual:${id}:created`,
-    metadata: status === '终止' ? { status } : undefined,
+    metadata: type === 'status_override' ? { status } : undefined,
   });
 }
 

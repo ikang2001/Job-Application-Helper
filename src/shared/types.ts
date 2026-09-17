@@ -213,10 +213,10 @@ export interface SyncMetadata {
 export type ApplicationRecordStatus =
   | '待投递'
   | '已投递'
+  | '等待中'
   | '笔试/测评'
   | '面试中'
   | 'offer'
-  | '已拒绝'
   | '主动放弃'
   | '职位关闭'
   | '终止';

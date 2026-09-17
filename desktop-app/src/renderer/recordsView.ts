@@ -100,9 +100,10 @@ function applicationStageRank(record: ApplicationRecord): number {
   if (record.status === '笔试/测评') {
     return hasScheduleEntry(record.recruitmentSchedule?.writtenTest) ? 2 : 3;
   }
-  if (record.status === '已投递') return 4;
-  if (record.status === '待投递') return 5;
-  return 6;
+  if (record.status === '等待中') return 4;
+  if (record.status === '已投递') return 5;
+  if (record.status === '待投递') return 6;
+  return 7;
 }
 
 function hasScheduleEntry(entry: { scheduledAt: string; url: string } | undefined): boolean {
@@ -110,5 +111,5 @@ function hasScheduleEntry(entry: { scheduledAt: string; url: string } | undefine
 }
 
 export function activeApplicationCount(records: readonly ApplicationRecord[]): number {
-  return records.filter(record => ['已投递', '笔试/测评', '面试中'].includes(record.status)).length;
+  return records.filter(record => ['已投递', '等待中', '笔试/测评', '面试中'].includes(record.status)).length;
 }

@@ -25,7 +25,7 @@ export interface UpcomingRecruitmentSchedule {
   url: string;
 }
 
-const TERMINAL_STATUSES = new Set<ApplicationRecord['status']>(['已拒绝', '主动放弃', '职位关闭']);
+const TERMINAL_STATUSES = new Set<ApplicationRecord['status']>(['主动放弃', '职位关闭']);
 
 export const RECRUITMENT_SCHEDULE_ROWS: readonly RecruitmentScheduleRow[] = [
   { group: 'stage', kind: 'writtenTest', label: '笔试' },
@@ -59,6 +59,23 @@ export function updateScheduleEntry(
     ...schedule,
     interviews: { ...schedule?.interviews, [row.kind]: entry },
   };
+}
+
+export function clearScheduleEntry(
+  schedule: RecruitmentSchedule | undefined,
+  row: RecruitmentScheduleRow,
+): RecruitmentSchedule | undefined {
+  if (!schedule) return undefined;
+  const next = { ...schedule };
+  if (row.group === 'stage') {
+    delete next[row.kind];
+  } else {
+    const interviews = { ...next.interviews };
+    delete interviews[row.kind];
+    if (Object.keys(interviews).length > 0) next.interviews = interviews;
+    else delete next.interviews;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function scheduleDisplayLabel(label: string, entry: RecruitmentScheduleEntry): string {

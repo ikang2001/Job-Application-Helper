@@ -31,6 +31,9 @@ const LEGACY_APPLICATION_RECORD_STATUS_MAP: Record<string, ApplicationRecordStat
   已投递: '已投递',
   applied: '已投递',
   submitted: '已投递',
+  等待中: '等待中',
+  等待: '等待中',
+  waiting: '等待中',
   笔试: '笔试/测评',
   已笔试: '笔试/测评',
   '笔试/测评': '笔试/测评',
@@ -39,10 +42,10 @@ const LEGACY_APPLICATION_RECORD_STATUS_MAP: Record<string, ApplicationRecordStat
   面试中: '面试中',
   interview: '面试中',
   offer: 'offer',
-  已拒绝: '已拒绝',
-  拒绝: '已拒绝',
-  rejected: '已拒绝',
-  rejection: '已拒绝',
+  已拒绝: '主动放弃',
+  拒绝: '主动放弃',
+  rejected: '主动放弃',
+  rejection: '主动放弃',
   主动放弃: '主动放弃',
   放弃: '主动放弃',
   withdrawn: '主动放弃',
@@ -327,10 +330,10 @@ function migrationEventType(status: ApplicationRecordStatus): ApplicationEventTy
   switch (status) {
     case '待投递': return 'application_created';
     case '已投递': return 'applied';
+    case '等待中': return 'status_override';
     case '笔试/测评': return 'assessment_invite';
     case '面试中': return 'interview';
     case 'offer': return 'offer';
-    case '已拒绝': return 'rejection';
     case '主动放弃': return 'withdrawn';
     case '职位关闭': return 'job_closed';
     case '终止': return 'status_override';
@@ -344,13 +347,14 @@ function createMigrationEvent(
   occurredAt: string,
 ): ApplicationEvent {
   const sourceKey = `migration:${recordId}:${legacyStatus || status}`;
+  const type = migrationEventType(status);
   return createApplicationEvent({
-    type: migrationEventType(status),
+    type,
     occurredAt: occurredAt || '1970-01-01',
     source: 'migration',
     title: `迁移旧状态：${legacyStatus || status}`,
     sourceKey,
-    metadata: status === '终止' ? { status } : undefined,
+    metadata: type === 'status_override' ? { status } : undefined,
   });
 }
 

@@ -10,8 +10,8 @@ import { filterAndSortCareerFairs } from './career-fairs.js?v=10';
 const DB_NAME = 'job-application-helper-mobile';
 const DB_VERSION = 1;
 const STORE_NAME = 'private-state';
-const ACTIVE_STATUSES = new Set(['已投递', '笔试/测评', '面试中']);
-const FILTERS = ['全部', '已投递', '笔试/测评', '面试中', 'offer'];
+const ACTIVE_STATUSES = new Set(['已投递', '等待中', '笔试/测评', '面试中']);
+const FILTERS = ['全部', '已投递', '等待中', '笔试/测评', '面试中', 'offer'];
 
 const elements = {
   unpaired: document.querySelector('#unpaired-view'),
@@ -718,7 +718,7 @@ function element(tagName, className = '', text = '') {
 }
 
 function statusClass(status) {
-  return ({ '待投递': 'pending', '已投递': 'submitted', '笔试/测评': 'assessment', '面试中': 'interview', offer: 'offer' })[status] ?? 'closed';
+  return ({ '待投递': 'pending', '已投递': 'submitted', '等待中': 'waiting', '笔试/测评': 'assessment', '面试中': 'interview', offer: 'offer' })[status] ?? 'closed';
 }
 
 function recordTime(record) {

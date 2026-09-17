@@ -2,11 +2,29 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ApplicationRecord } from '../../../src/shared/types.ts';
 import {
+  clearScheduleEntry,
   completedRecruitmentSchedules,
   filterRecruitmentSchedules,
   setRecruitmentScheduleCompleted,
   upcomingRecruitmentSchedules,
 } from './recruitmentSchedule.ts';
+
+test('清空单项安排会移除该项并保留其他安排', () => {
+  const schedule = {
+    writtenTest: { scheduledAt: '2026-09-11T19:00', url: '', timeKind: 'deadline' as const },
+    interviews: {
+      first: { scheduledAt: '2026-09-12T10:00', url: 'https://meeting.example.com/first' },
+    },
+  };
+
+  assert.deepEqual(clearScheduleEntry(schedule, { group: 'stage', kind: 'writtenTest', label: '笔试' }), {
+    interviews: schedule.interviews,
+  });
+  assert.equal(clearScheduleEntry(
+    { writtenTest: schedule.writtenTest },
+    { group: 'stage', kind: 'writtenTest', label: '笔试' },
+  ), undefined);
+});
 
 function record(overrides: Partial<ApplicationRecord>): ApplicationRecord {
   return {

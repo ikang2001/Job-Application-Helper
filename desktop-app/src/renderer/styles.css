@@ -1355,6 +1355,12 @@ button:disabled {
 .schedule-editor legend { padding: 0 7px; color: var(--teal-dark); font-size: 12px; font-weight: 650; }
 .schedule-editor > p { margin: -2px 0 13px; color: var(--muted); font-size: 9px; }
 .schedule-editor > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, .55fr) minmax(0, 1fr); gap: 13px 17px; }
+.schedule-time-field { display: grid; min-width: 0; gap: 7px; color: #435152; font-size: 11px; font-weight: 600; }
+.schedule-time-field > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.schedule-time-field label { display: block; }
+.schedule-clear-button { padding: 0; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 9px; }
+.schedule-clear-button:hover { color: var(--coral); text-decoration: underline; }
+.schedule-clear-button:disabled { cursor: default; opacity: .35; text-decoration: none; }
 
 .panel-actions {
   justify-content: flex-end;

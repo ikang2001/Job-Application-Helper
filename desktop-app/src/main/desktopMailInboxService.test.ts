@@ -145,6 +145,88 @@ test('包含测评笔试或面试安排的邮件进入待审核，普通投递�
   assert.equal(next.mailInbox?.reviews[0]?.suggestedStage, 'assessment');
 });
 
+test('桌面端按邮件接收时间识别带空格的三天内测评截止时间', async () => {
+  const client = new FakeNativeMailClient();
+  client.listMessages = async () => ({
+    messages: [{
+      id: 'tcl-assessment-1',
+      from: { name: 'TCL招聘', address: 'tclzhaopin@example.com' },
+      to: ['candidate@163.com'],
+      subject: '人才测评通知',
+      receivedAt: '2026-09-15T06:15:34.000Z',
+    }],
+    cursor: { uidValidity: '1', lastUid: 203 },
+    hasMore: false,
+  });
+  client.getMessage = async () => ({
+    id: 'tcl-assessment-1',
+    accountId: 'account-1',
+    from: { name: 'TCL招聘', address: 'tclzhaopin@example.com' },
+    to: ['candidate@163.com'],
+    subject: '人才测评通知',
+    receivedAt: '2026-09-15T06:15:34.000Z',
+    text: '感谢您申请TCL校招岗位，现邀请您参加在线测评，请在收到通知的 3 天 内 完成测评。',
+    truncated: false,
+  });
+
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [record('AI应用开发工程师', 'https://jobs.tcl.com/1', 'TCL')],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+  });
+
+  assert.equal(next.mailInbox?.reviews[0]?.suggestedStage, 'assessment');
+  assert.equal(next.mailInbox?.reviews[0]?.deadlineAt, '2026-09-18T06:15:34.000Z');
+});
+
+test('邮件主题中的金蝶优先于正文奖学金证书造成的金证误匹配', async () => {
+  const kingdee = record(
+    'AI agent开发工程师（深圳）',
+    'https://app.mokahr.com/campus-recruitment/kingdeehr/job/1',
+    '金蝶软件（中国）有限公司',
+  );
+  const kingsoft = record(
+    '大模型应用开发工程师',
+    'https://jobs.example.com/kingsoft',
+    '金证科技',
+  );
+  const client = new FakeNativeMailClient();
+  client.listMessages = async () => ({
+    messages: [{
+      id: 'kingdee-interview-1',
+      from: { name: '招聘小秘书', address: 'kingdeehr-no-reply@mail.mokahr.com' },
+      to: ['candidate@163.com'],
+      subject: '金蝶2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
+      receivedAt: '2026-09-15T12:16:34.000Z',
+    }],
+    cursor: { uidValidity: '1', lastUid: 204 },
+    hasMore: false,
+  });
+  client.getMessage = async () => ({
+    id: 'kingdee-interview-1',
+    accountId: 'account-1',
+    from: { name: '招聘小秘书', address: 'kingdeehr-no-reply@mail.mokahr.com' },
+    to: ['candidate@163.com'],
+    subject: '金蝶2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
+    receivedAt: '2026-09-15T12:16:34.000Z',
+    text: '恭喜你通过线上笔试，请参加金蝶业务初面。可补充奖学金证书等面试材料。面试时间：2026年9月16日 14:00。',
+    truncated: false,
+  });
+
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [kingdee, kingsoft],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+  });
+
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '金蝶软件（中国）有限公司');
+  assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, [kingdee.id]);
+});
+
 test('无法匹配公司的测评邮件仍进入人工审核', async () => {
   const client = new FakeNativeMailClient();
   client.listMessages = async () => ({

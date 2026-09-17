@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputDirectory = resolve(desktopRoot, '../.artifacts');
 const outputPath = join(outputDirectory, 'desktop-ui-smoke.png');
+const recordFormOutputPath = join(outputDirectory, 'desktop-record-schedule-form-smoke.png');
 const groupedOutputPath = join(outputDirectory, 'desktop-company-groups-smoke.png');
 const careerFairOutputPath = join(outputDirectory, 'desktop-career-fairs-smoke.png');
 const careerFairFormOutputPath = join(outputDirectory, 'desktop-career-fair-form-smoke.png');
@@ -164,6 +165,17 @@ void app.whenReady().then(async () => {
   await writeFile(outputPath, image.toPNG());
   await window.webContents.executeJavaScript(`
     [...document.querySelectorAll('button')]
+      .find(button => button.textContent?.trim() === '编辑安排')
+      ?.click();
+  `);
+  await new Promise(resolvePromise => setTimeout(resolvePromise, 300));
+  await writeFile(recordFormOutputPath, (await window.webContents.capturePage()).toPNG());
+  await window.webContents.executeJavaScript(`
+    document.querySelector('.record-panel [aria-label="关闭"]')?.click();
+  `);
+  await new Promise(resolvePromise => setTimeout(resolvePromise, 100));
+  await window.webContents.executeJavaScript(`
+    [...document.querySelectorAll('button')]
       .find(button => button.getAttribute('aria-label')?.startsWith('查看近期安排'))
       ?.click();
   `);
@@ -271,6 +283,7 @@ void app.whenReady().then(async () => {
   const favoritesImage = await window.webContents.capturePage();
   await writeFile(favoritesOutputPath, favoritesImage.toPNG());
   console.log(outputPath);
+  console.log(recordFormOutputPath);
   console.log(groupedOutputPath);
   console.log(careerFairOutputPath);
   console.log(careerFairFormOutputPath);

@@ -83,6 +83,14 @@ test('extractor recognizes absolute expiry and relative completion deadlines', (
   });
   assert.equal(relative.deadlineAt, '2026-09-11T06:00:00.000Z');
 
+  const spacedRelative = extractRecruitmentData({
+    ...interviewEmail,
+    subject: '人才测评通知',
+    receivedAt: '2026-09-15T06:15:34.000Z',
+    text: '现邀请您参加在线测评，请在收到通知的 3 天 内 完成测评。',
+  });
+  assert.equal(spacedRelative.deadlineAt, '2026-09-18T06:15:34.000Z');
+
   const linkValidity = extractRecruitmentData({
     ...interviewEmail,
     subject: '【安克创新校招测评】2027届校园招聘',
@@ -116,6 +124,17 @@ test('extractor reads the employer name from Chinese assessment subjects before 
   });
 
   assert.equal(extracted.companyName, '传音控股');
+});
+
+test('extractor reads the employer name from a Moka initial interview subject', () => {
+  const extracted = extractRecruitmentData({
+    ...interviewEmail,
+    subject: '金蝶2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
+    from: { name: '招聘小秘书', address: 'kingdeehr-no-reply@mail.mokahr.com' },
+    text: '恭喜你通过线上笔试，我们诚挚邀请你参加业务初试。',
+  });
+
+  assert.equal(extracted.companyName, '金蝶');
 });
 
 test('classifier recognizes plain Chinese assessment notices and AI interview invitations', () => {

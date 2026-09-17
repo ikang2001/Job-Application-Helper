@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "秋招网申助手",
-  "version": "1.1.35",
+  "version": "1.1.36",
   "minimum_chrome_version": "116",
   "description": "自动识别和填充求职网申表单，支持简历解析",
   "permissions": [

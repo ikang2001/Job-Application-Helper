@@ -12,17 +12,16 @@ import type {
 export const APPLICATION_RECORD_STATUSES: ApplicationRecordStatus[] = [
   '待投递',
   '已投递',
+  '等待中',
   '笔试/测评',
   '面试中',
   'offer',
-  '已拒绝',
   '主动放弃',
   '职位关闭',
   '终止',
 ];
 
 export const TERMINAL_APPLICATION_RECORD_STATUSES = new Set<ApplicationRecordStatus>([
-  '已拒绝',
   '主动放弃',
   '职位关闭',
   '终止',
@@ -60,7 +59,7 @@ const EVENT_STATUS: Partial<Record<ApplicationEventType, ApplicationRecordStatus
   interview_invite: '面试中',
   interview: '面试中',
   offer: 'offer',
-  rejection: '已拒绝',
+  rejection: '主动放弃',
   withdrawn: '主动放弃',
   job_closed: '职位关闭',
 };
@@ -104,7 +103,7 @@ function normalizeEventMetadata(value: unknown): ApplicationEventMetadata | unde
   const metadata = asRecord(value);
   if (Object.keys(metadata).length === 0) return undefined;
 
-  const status = isApplicationRecordStatus(metadata.status) ? metadata.status : undefined;
+  const status = legacyApplicationRecordStatus(metadata.status);
   return {
     ...metadata,
     status,
@@ -117,6 +116,13 @@ function normalizeEventMetadata(value: unknown): ApplicationEventMetadata | unde
     summary: optionalString(metadata.summary),
     classification: optionalString(metadata.classification),
   };
+}
+
+function legacyApplicationRecordStatus(value: unknown): ApplicationRecordStatus | undefined {
+  if (value === '已拒绝' || value === '拒绝' || value === 'rejected' || value === 'rejection') {
+    return '主动放弃';
+  }
+  return isApplicationRecordStatus(value) ? value : undefined;
 }
 
 function compareOccurredAt(left: string, right: string): number {

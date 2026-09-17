@@ -262,7 +262,7 @@ function statusClass(status: ApplicationRecord['status']): string {
   if (status === 'offer') return 'status-offer';
   if (status === '面试中') return 'status-interview';
   if (status === '笔试/测评') return 'status-assessment';
-  if (['已拒绝', '主动放弃', '职位关闭', '终止'].includes(status)) return 'status-terminal';
+  if (['主动放弃', '职位关闭', '终止'].includes(status)) return 'status-terminal';
   return 'status-active';
 }
 
