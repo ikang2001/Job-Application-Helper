@@ -93,7 +93,7 @@ test('extractor recognizes absolute expiry and relative completion deadlines', (
 
   const linkValidity = extractRecruitmentData({
     ...interviewEmail,
-    subject: '【安克创新校招测评】2027届校园招聘',
+    subject: '【星桥创新校招测评】2027届校园招聘',
     receivedAt: '2026-09-11T06:00:00.000Z',
     text: '请用简历中的姓名、邮箱完成认证;链接有效期5天,请合理安排时间。',
   });
@@ -109,8 +109,8 @@ test('extractor recognizes absolute expiry and relative completion deadlines', (
 
   const validityWindow = extractRecruitmentData({
     ...interviewEmail,
-    subject: '在线测评邀请——传音控股2027届校园招聘',
-    text: '本次测试邀请于2026年09月10日 周四 18:08生效，于2026年09月17日 周四 18:08失效。传音控股 2026年09月10日',
+    subject: '在线测评邀请——远航控股2027届校园招聘',
+    text: '本次测试邀请于2026年09月10日 周四 18:08生效，于2026年09月17日 周四 18:08失效。远航控股 2026年09月10日',
   });
   assert.equal(validityWindow.deadlineAt, '2026-09-17T18:08:00');
 });
@@ -118,36 +118,36 @@ test('extractor recognizes absolute expiry and relative completion deadlines', (
 test('extractor reads the employer name from Chinese assessment subjects before platform domains', () => {
   const extracted = extractRecruitmentData({
     ...interviewEmail,
-    subject: '在线测评邀请——传音控股2027届校园招聘',
+    subject: '在线测评邀请——远航控股2027届校园招聘',
     from: { name: 'iTalent招聘助手', address: 'notice@shmail.ibeisen.com' },
     text: '请在规定时间内完成在线测评。',
   });
 
-  assert.equal(extracted.companyName, '传音控股');
+  assert.equal(extracted.companyName, '远航控股');
 });
 
 test('extractor reads the employer name from a Moka initial interview subject', () => {
   const extracted = extractRecruitmentData({
     ...interviewEmail,
-    subject: '金蝶2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
-    from: { name: '招聘小秘书', address: 'kingdeehr-no-reply@mail.mokahr.com' },
+    subject: '云枢2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
+    from: { name: '云枢招聘', address: 'recruit@example.com' },
     text: '恭喜你通过线上笔试，我们诚挚邀请你参加业务初试。',
   });
 
-  assert.equal(extracted.companyName, '金蝶');
+  assert.equal(extracted.companyName, '云枢');
 });
 
 test('classifier recognizes plain Chinese assessment notices and AI interview invitations', () => {
   const assessment = classifyRecruitmentEmail({
     ...interviewEmail,
     id: 'assessment-cn',
-    subject: '汇川技术2027届校园招聘测评通知',
+    subject: '云帆技术2027届校园招聘测评通知',
     text: '请登录人才测评系统，在截止时间前完成。',
   });
   const aiInterview = classifyRecruitmentEmail({
     ...interviewEmail,
     id: 'ai-interview-cn',
-    subject: '锐捷网络 AI面试邀约',
+    subject: '星河网络 AI面试邀约',
     text: '请按邮件说明完成智能面试。',
   });
   assert.equal(assessment.category, RECRUITMENT_MAIL_CATEGORY.ASSESSMENT_INVITE);

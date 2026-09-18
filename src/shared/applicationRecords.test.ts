@@ -29,11 +29,11 @@ function record(overrides: Partial<ApplicationRecord> = {}): ApplicationRecord {
   });
   return {
     id: 'r1',
-    companyName: '字节跳动',
+    companyName: '星河软件',
     jobTitle: '后端工程师',
     jobId: 'JOB-1',
-    sourceSite: 'jobs.bytedance.com',
-    sourceUrl: 'https://jobs.bytedance.com/example?jobId=JOB-1',
+    sourceSite: 'jobs.example.com',
+    sourceUrl: 'https://jobs.example.com/example?jobId=JOB-1',
     status: '已投递',
     notes: '',
     appliedAt: '2026-08-07',
@@ -47,20 +47,20 @@ function record(overrides: Partial<ApplicationRecord> = {}): ApplicationRecord {
 
 test('createApplicationRecordDraft 带岗位快照字段和确定性 applied 事件', () => {
   const draft = createApplicationRecordDraft('2026-08-07T10:00:00.000Z', {
-    companyName: '字节跳动',
+    companyName: '星河软件',
     jobTitle: '后端工程师',
     jobId: 'JOB-1',
-    sourceSite: 'jobs.bytedance.com',
-    sourceUrl: 'https://jobs.bytedance.com/example?utm_source=test&jobId=JOB-1',
+    sourceSite: 'jobs.example.com',
+    sourceUrl: 'https://jobs.example.com/example?utm_source=test&jobId=JOB-1',
     location: '北京',
-    pageTitle: '字节跳动校园招聘',
+    pageTitle: '星河软件校园招聘',
   });
   assert.equal(draft.status, '已投递');
   assert.equal(draft.jobTitle, '后端工程师');
   assert.equal(draft.jobId, 'JOB-1');
   assert.equal(draft.events.length, 1);
   assert.equal(draft.events[0]?.type, 'applied');
-  assert.equal(draft.events[0]?.sourceKey, 'website:https://jobs.bytedance.com/example?jobId=JOB-1:applied');
+  assert.equal(draft.events[0]?.sourceKey, 'website:https://jobs.example.com/example?jobId=JOB-1:applied');
 });
 
 test('旧记录所有状态迁移为事件，保留未知字段且规范化幂等', () => {
@@ -126,11 +126,11 @@ test('URL 规范化删除追踪参数/无意义 hash，但保留岗位标识', (
 test('重复判断依次使用公司+jobId、规范 URL、公司+岗位+地点', () => {
   const records = [
     record({ id: 'by-url', companyName: '甲', jobId: 'other' }),
-    record({ id: 'by-job-id', companyName: '字节跳动', jobId: 'JOB-1', sourceUrl: 'https://other.example/1' }),
+    record({ id: 'by-job-id', companyName: '星河软件', jobId: 'JOB-1', sourceUrl: 'https://other.example/1' }),
   ];
   assert.deepEqual(
     findApplicationRecordDuplicateMatch(records, {
-      companyName: ' 字节跳动 ',
+      companyName: ' 星河软件 ',
       jobId: 'job-1',
       sourceUrl: records[0]!.sourceUrl,
     }),
@@ -143,7 +143,7 @@ test('重复判断依次使用公司+jobId、规范 URL、公司+岗位+地点',
   assert.equal(findApplicationRecordDuplicate([
     record({ id: 'weak', sourceUrl: '', jobId: undefined }),
   ], {
-    companyName: '字节跳动',
+    companyName: '星河软件',
     jobTitle: '后端工程师',
     location: '北京',
     sourceUrl: '',
@@ -294,9 +294,9 @@ test('手动导出 CSV 只包含 6 列中文字段，Excel 链接显示网址、
 test('6 列中文 CSV 可导入普通 URL，且不执行非 HTTP 公式或其他表格公式', () => {
   const rawUrlCsv = [
     APPLICATION_RECORD_TABLE_CSV_HEADERS.join(','),
-    '腾讯,后台开发,https://careers.tencent.com/job/1,已投递,2026-09-12,深圳',
+    '云帆通信,测试岗位B,https://jobs.example.com/job/1,已投递,2026-09-12,示例城市B',
   ].join('\r\n');
-  assert.equal(parseApplicationRecordsCsv(rawUrlCsv).records[0]?.sourceUrl, 'https://careers.tencent.com/job/1');
+  assert.equal(parseApplicationRecordsCsv(rawUrlCsv).records[0]?.sourceUrl, 'https://jobs.example.com/job/1');
 
   const unsafeCsv = [
     APPLICATION_RECORD_TABLE_CSV_HEADERS.join(','),
@@ -360,7 +360,7 @@ test('旧版 V2 CSV 的单面试列继续导入为一面', () => {
 test('CSV V1 继续导入旧状态，非法表头和非法状态返回清晰诊断', () => {
   const csv = [
     APPLICATION_RECORD_CSV_HEADERS.join(','),
-    '腾讯,后台开发,tencent.com,https://careers.tencent.com/1,已笔试,,2026-08-09,深圳,2026-08-09T10:00:00.000Z,2026-08-09T10:00:00.000Z',
+    '云帆通信,测试岗位B,jobs.example.com,https://jobs.example.com/1,已笔试,,2026-08-09,示例城市B,2026-08-09T10:00:00.000Z,2026-08-09T10:00:00.000Z',
   ].join('\n');
   const parsed = parseApplicationRecordsCsv(csv);
   assert.equal(parsed.records[0]?.status, '笔试/测评');
@@ -369,7 +369,7 @@ test('CSV V1 继续导入旧状态，非法表头和非法状态返回清晰诊�
   assert.match(parseApplicationRecordsCsv('companyName,status\na,b').error ?? '', /V1 或 V2/);
   const invalidStatus = parseApplicationRecordsCsv([
     APPLICATION_RECORD_CSV_HEADERS.join(','),
-    '腾讯,后台开发,tencent.com,https://careers.tencent.com/1,未知,,2026-08-09,深圳,a,b',
+    '云帆通信,测试岗位B,jobs.example.com,https://jobs.example.com/1,未知,,2026-08-09,示例城市B,a,b',
   ].join('\n'));
   assert.equal(invalidStatus.records.length, 0);
   assert.match(invalidStatus.warnings[0] ?? '', /非法状态/);
@@ -379,10 +379,10 @@ test('StorageService 读取旧记录时返回 canonical V2 且保存后不丢事
   const storageState: Record<string, unknown> = {
     [STORAGE_KEYS.APPLICATION_RECORDS]: [{
       id: 'legacy-r1',
-      companyName: '字节跳动',
+      companyName: '星河软件',
       jobTitle: '',
-      sourceSite: 'jobs.bytedance.com',
-      sourceUrl: 'https://jobs.bytedance.com/example',
+      sourceSite: 'jobs.example.com',
+      sourceUrl: 'https://jobs.example.com/example',
       status: 'Offer',
       notes: '',
       appliedAt: '2026-08-07',

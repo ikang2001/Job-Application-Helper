@@ -111,8 +111,8 @@ function sampleSnapshot(revision, generatedAt) {
       createdAt: generatedAt, updatedAt: generatedAt,
     }],
     careerFairs: [{
-      id: 'smoke-fair', name: '西北工业大学秋季双选会', status: '计划参加', startsAt: '2026-09-15T19:00',
-      endsAt: '', mode: '线下', location: '长安校区', organizer: '就业中心', registrationDeadline: '',
+      id: 'smoke-fair', name: '示例大学秋季双选会', status: '计划参加', startsAt: '2026-09-15T19:00',
+      endsAt: '', mode: '线下', location: '中心校区', organizer: '就业中心', registrationDeadline: '',
       eventUrl: 'https://career.example.com/fair', targetCompanies: '示例科技', targetRoles: 'Agent 开发工程师',
       preparation: '纸质简历', notes: '', createdAt: generatedAt, updatedAt: generatedAt,
     }],

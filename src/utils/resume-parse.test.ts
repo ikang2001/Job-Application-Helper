@@ -10,17 +10,17 @@ import { parseResumeJSON } from '../parsers/jsonParser.ts';
  */
 const RESUME = [
   '中共党员 2002年5月',
-  '张明 zhangming@example.com 13812345678',
+  '测试甲 candidate@example.com 13800000000',
   '教育经历',
-  '北京师范大学 理论经济学专业 · 硕士 2024/09 - 2027/06',
-  '中国人民大学 劳动经济学专业 · 本科 2020/09 - 2024/06',
+  '示例大学 理论经济学专业 · 硕士 2024/09 - 2027/06',
+  '示例学院 劳动经济学专业 · 本科 2020/09 - 2024/06',
   '实习经历',
-  '科大讯飞 AI产品经理 2026/03 - 2026/06',
+  '星河软件 测试岗位A 2026/03 - 2026/06',
   '产品迭代与功能优化：参与多模态医疗Agent产品从0到1的搭建、规划与迭代，推动产品体验持续优',
   '化。',
-  '美团快驴 数据运营 2025.10-2026.01',
+  '云帆电商 测试岗位B 2025.10-2026.01',
   '数据支持与看板搭建：独立承担业务数据支持工作，编写SQL完成数据提取与清洗。',
-  '国务院发展研究中心大数据研究院 产品经理 2025.06-2025.09',
+  '示例研究院 测试岗位C 2025.06-2025.09',
   '产品更新与迭代：深度参与大数据可视化平台的更新与迭代。',
   '校园经历',
   '参与大学生创业训练计划，负责市场分析与财务模块，获得国家级结项。',
@@ -40,11 +40,11 @@ test('按章节标题切分简历', () => {
 
 test('提取无标签的个人信息', () => {
   const personal = NLPHelper.parseResumeText(RESUME).personal!;
-  assert.equal(personal.name, '张明');
+  assert.equal(personal.name, '测试甲');
   assert.equal(personal.politicalStatus, '中共党员');
   assert.equal(personal.birthDate, '2002-05');
-  assert.equal(personal.phone, '13812345678');
-  assert.equal(personal.email, 'zhangming@example.com');
+  assert.equal(personal.phone, '13800000000');
+  assert.equal(personal.email, 'candidate@example.com');
 });
 
 test('政治面貌不会被当成姓名', () => {
@@ -69,27 +69,27 @@ test('学校行拆分为学校/专业/学历/起止时间', () => {
     { ...education[0], id: undefined },
     {
       id: undefined,
-      school: '北京师范大学',
+      school: '示例大学',
       major: '理论经济学',
       degree: '硕士',
       startDate: '2024-09',
       endDate: '2027-06',
     }
   );
-  assert.equal(education[1].school, '中国人民大学');
+  assert.equal(education[1].school, '示例学院');
   assert.equal(education[1].degree, '本科');
 });
 
 test('专业与括号学历紧邻时仍分别提取', () => {
   const parsed = NLPHelper.parseResumeText([
     '教育背景',
-    '2024-09 ~ 2027-07 西北工业大学（985） 机器人工程（硕士）',
-    '2019-09 ~ 2023-07 武汉轻工大学 自动化（本科）',
+    '2024-09 ~ 2027-07 示例大学（985） 机器人工程（硕士）',
+    '2019-09 ~ 2023-07 示例大学 自动化（本科）',
   ].join('\n')).education!;
 
   assert.deepEqual(parsed.map(item => [item.school, item.major, item.degree]), [
-    ['西北工业大学（985）', '机器人工程', '硕士'],
-    ['武汉轻工大学', '自动化', '本科'],
+    ['示例大学（985）', '机器人工程', '硕士'],
+    ['示例大学', '自动化', '本科'],
   ]);
 });
 
@@ -105,16 +105,16 @@ test('教育经历不收录含「大学」的校园活动描述', () => {
 test('识别不含「公司/集团」的机构名', () => {
   const experience = NLPHelper.parseResumeText(RESUME).experience!;
   assert.equal(experience.length, 3);
-  assert.equal(experience[0].company, '科大讯飞');
-  assert.equal(experience[0].position, 'AI产品经理');
-  assert.equal(experience[1].company, '美团快驴');
-  assert.equal(experience[1].position, '数据运营');
+  assert.equal(experience[0].company, '星河软件');
+  assert.equal(experience[0].position, '测试岗位A');
+  assert.equal(experience[1].company, '云帆电商');
+  assert.equal(experience[1].position, '测试岗位B');
 });
 
 test('机构名含「研究」时不与职位对调', () => {
   const experience = NLPHelper.parseResumeText(RESUME).experience!;
-  assert.equal(experience[2].company, '国务院发展研究中心大数据研究院');
-  assert.equal(experience[2].position, '产品经理');
+  assert.equal(experience[2].company, '示例研究院');
+  assert.equal(experience[2].position, '测试岗位C');
 });
 
 test('经历起止时间归一化为 YYYY-MM', () => {
@@ -152,16 +152,16 @@ test('「至今」结束时间', () => {
 
 test('无章节标题的简历回退到全文扫描', () => {
   const plain = [
-    '李华 lihua@example.com 13900001111',
-    '清华大学 计算机科学与技术专业 · 本科 2019/09 - 2023/06',
-    '腾讯科技有限公司 后端工程师 2023/07 - 至今',
+    '测试乙 candidate@example.com 13900000000',
+    '示例大学 计算机科学与技术专业 · 本科 2019/09 - 2023/06',
+    '云帆通信有限公司 测试岗位B 2023/07 - 至今',
   ].join('\n');
 
   const parsed = NLPHelper.parseResumeText(plain);
-  assert.equal(parsed.education?.[0].school, '清华大学');
+  assert.equal(parsed.education?.[0].school, '示例大学');
   assert.equal(parsed.education?.[0].degree, '本科');
-  assert.equal(parsed.experience?.[0].company, '腾讯科技有限公司');
-  assert.equal(parsed.experience?.[0].position, '后端工程师');
+  assert.equal(parsed.experience?.[0].company, '云帆通信有限公司');
+  assert.equal(parsed.experience?.[0].position, '测试岗位B');
   assert.equal(parsed.experience?.[0].endDate, '至今');
 });
 

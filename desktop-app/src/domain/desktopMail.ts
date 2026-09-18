@@ -110,9 +110,10 @@ export function confirmDesktopMailReview(
   if (!STAGES.has(input.stage)) throw new Error('请选择正确的邮件阶段');
   const record = records.find(item => item.id === input.recordId);
   if (!record) throw new Error('请选择该公司对应的投递岗位');
-  if (review.companyName && normalizeCompany(review.companyName) !== normalizeCompany(record.companyName)) {
-    throw new Error('所选岗位不属于邮件匹配的公司');
-  }
+  const selectedCompany = normalizeCompany(record.companyName);
+  const selectedCompanyRecordIds = records
+    .filter(item => normalizeCompany(item.companyName) === selectedCompany)
+    .map(item => item.id);
 
   const entry = scheduleEntryForReview(review, input);
   const recruitmentSchedule = scheduleForReview(record.recruitmentSchedule, entry, input.stage);
@@ -149,6 +150,8 @@ export function confirmDesktopMailReview(
       ...item,
       state: 'confirmed',
       reviewedAt: nowIso,
+      companyName: record.companyName,
+      candidateRecordIds: selectedCompanyRecordIds,
       selectedRecordId: record.id,
       selectedStage: input.stage,
       actionUrl: entry?.url || review.actionUrl,

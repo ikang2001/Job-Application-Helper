@@ -6,19 +6,19 @@ import { buildAuthoritativeFillProfile } from './fillProfile.ts';
 test('旧资料缺失专业时从插件内已解析的简历正文安全补全', () => {
   const profile = createEmptyUserProfile();
   profile.education = [{
-    id: 'edu-1', school: '武汉轻工大学', college: '电气与电子工程学院',
+    id: 'edu-1', school: '示例大学', college: '示例学院',
     major: '', degree: '本科', startDate: '2019-09', endDate: '2023-07',
   }];
   profile.resume = {
     fileName: 'resume.pdf', fileData: 'data:application/pdf;base64,', fileType: 'pdf',
     uploadDate: '2026-09-04',
-    parsedText: '教育背景\n2019-09 ~ 2023-07 武汉轻工大学 自动化（本科）',
+    parsedText: '教育背景\n2019-09 ~ 2023-07 示例大学 自动化（本科）',
   };
 
   const enriched = buildAuthoritativeFillProfile(profile);
 
   assert.equal(enriched.education[0].major, '自动化');
-  assert.equal(enriched.education[0].college, '电气与电子工程学院');
+  assert.equal(enriched.education[0].college, '示例学院');
   assert.equal(profile.education[0].major, '');
 });
 

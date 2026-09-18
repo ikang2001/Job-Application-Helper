@@ -269,23 +269,28 @@ function enrichPendingReview(
     receivedAt: review.receivedAt,
     text: review.summary,
   });
-  const match = review.candidateRecordIds.length
-    ? undefined
-    : matchDesktopMailMessageCompany(
-      review.subject,
-      `${review.subject}\n${review.from}\n${review.summary}`,
-      extracted.companyName,
-      records,
-    );
+  const match = matchDesktopMailMessageCompany(
+    review.subject,
+    `${review.subject}\n${review.from}\n${review.summary}`,
+    extracted.companyName,
+    records,
+  );
   const deadlineAt = review.deadlineAt ?? extracted.deadlineAt;
-  const companyName = match?.companyName ?? review.companyName;
-  const candidateRecordIds = match?.recordIds.length ? match.recordIds : review.candidateRecordIds;
+  const companyName = match.recordIds.length ? match.companyName : review.companyName;
+  const matchedRecordIds = match.recordIds.length ? match.recordIds : review.candidateRecordIds;
+  const candidateRecordIds = sameStrings(matchedRecordIds, review.candidateRecordIds)
+    ? review.candidateRecordIds
+    : matchedRecordIds;
   if (
     deadlineAt === review.deadlineAt
     && companyName === review.companyName
     && candidateRecordIds === review.candidateRecordIds
   ) return review;
   return { ...review, deadlineAt, companyName, candidateRecordIds };
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function matchDesktopMailMessageCompany(

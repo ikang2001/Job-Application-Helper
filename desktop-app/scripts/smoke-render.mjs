@@ -19,26 +19,26 @@ const completedOutputPath = join(outputDirectory, 'desktop-completed-schedules-s
 const now = '2026-09-04T08:30:00.000Z';
 
 const samples = [
-  record('字节跳动', '前端开发工程师', '面试中', '北京', '2026-09-02', 'jobs.bytedance.com'),
-  record('腾讯', '后台开发工程师', '笔试/测评', '深圳', '2026-09-01', 'join.qq.com'),
-  record('小红书', '产品经理', '已投递', '上海', '2026-08-30', 'job.xiaohongshu.com'),
-  record('米哈游', '数据分析师', 'offer', '上海', '2026-08-26', 'campus.mihoyo.com'),
-  record('网易', '客户端开发', '待投递', '杭州', '2026-09-04', 'campus.163.com'),
+  record('星河软件', '测试岗位A', '面试中', '示例城市A', '2026-09-02', 'jobs.example.com'),
+  record('云帆通信', '测试岗位B', '笔试/测评', '示例城市B', '2026-09-01', 'jobs.example.com'),
+  record('星河内容', '测试岗位C', '已投递', '示例城市C', '2026-08-30', 'jobs.example.com'),
+  record('晨光互动', '测试岗位D', 'offer', '示例城市C', '2026-08-26', 'jobs.example.com'),
+  record('云杉科技', '测试岗位E', '待投递', '示例城市D', '2026-09-04', 'jobs.example.com'),
 ];
 
 const careerFairs = [{
   id: 'fair-campus-autumn',
-  name: '西北工业大学 2027 届秋季大型双选会',
+  name: '示例大学 2027 届秋季大型双选会',
   status: '已报名',
   startsAt: '2026-09-12T09:00',
   endsAt: '2026-09-12T16:00',
   mode: '线下',
-  location: '长安校区启真楼一楼',
+  location: '中心校区会展中心一楼',
   organizer: '学生就业创业指导服务中心',
   registrationDeadline: '2026-09-11T18:00',
   eventUrl: 'https://career.example.com/fair',
-  targetCompanies: '华为、字节跳动、蔚来',
-  targetRoles: 'Agent 开发工程师、算法工程师',
+  targetCompanies: '示例科技、未来智能',
+  targetRoles: '测试岗位A、测试岗位B',
   preparation: '纸质简历 8 份、成绩单、作品集二维码',
   notes: '先去人工智能与软件企业展区，记录 HR 联系方式和后续网申入口。',
   createdAt: now,
@@ -107,15 +107,15 @@ const smokeState = {
       accounts: [{ id: 'mail-1', provider: '163', emailAddress: 'candidate@163.com', displayName: '求职邮箱', connection: 'connected' }],
       reviews: [
         {
-          id: 'review-ruijie', accountId: 'mail-1', messageId: '101', from: '锐捷校园招聘 <campus@example.com>',
-          subject: '锐捷网络 AI面试邀约', receivedAt: now, summary: '请在规定时间内完成 AI 面试，点击邮件中的链接进入。',
-          category: 'interview_invite', suggestedStage: 'ai', companyName: '锐捷网络',
+          id: 'review-galaxy', accountId: 'mail-1', messageId: '101', from: '星河招聘 <campus@example.com>',
+          subject: '星河网络 AI面试邀约', receivedAt: now, summary: '请在规定时间内完成 AI 面试，点击邮件中的链接进入。',
+          category: 'interview_invite', suggestedStage: 'ai', companyName: '星河网络',
           candidateRecordIds: [samples[0].id], extractedAt: '2026-09-12T19:00:00', actionUrl: 'https://meeting.example.com/ai', state: 'pending',
         },
         {
-          id: 'review-inovance', accountId: 'mail-1', messageId: '102', from: '汇川技术招聘 <talent@example.com>',
-          subject: '汇川技术2027届校园招聘测评通知', receivedAt: now, summary: '请于截止时间前完成人才测评。',
-          category: 'assessment_invite', suggestedStage: 'assessment', companyName: '汇川技术',
+          id: 'review-cloud-sail', accountId: 'mail-1', messageId: '102', from: '云帆招聘 <talent@example.com>',
+          subject: '云帆技术2027届校园招聘测评通知', receivedAt: now, summary: '请于截止时间前完成人才测评。',
+          category: 'assessment_invite', suggestedStage: 'assessment', companyName: '云帆技术',
           candidateRecordIds: [], deadlineAt: '2026-09-13T23:59:00', actionUrl: 'https://assessment.example.com/1', state: 'pending',
         },
       ],

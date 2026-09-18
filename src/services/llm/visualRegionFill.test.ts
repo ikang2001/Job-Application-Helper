@@ -15,7 +15,7 @@ import {
 function createPayload(): VisualRegionFillPayload {
   return {
     requestId: 'req-1',
-    domain: 'jobs.bytedance.com',
+    domain: 'jobs.example.com',
     image: {
       base64: 'ZmFrZQ==',
       mimeType: 'image/png',

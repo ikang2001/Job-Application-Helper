@@ -6,7 +6,7 @@ export default defineConfig({
     host: '127.0.0.1', port: 5182, strictPort: true,
     proxy: {
       '/ats-assets/': {
-        target: 'https://careers.midea.com', changeOrigin: true,
+        target: 'https://apply.vendor.example', changeOrigin: true,
         rewrite: path => path.replace('/ats-assets/', '/schoolOut/assets/'),
       },
     },

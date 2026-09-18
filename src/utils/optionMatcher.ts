@@ -100,7 +100,7 @@ export function scoreOptionMatch(option: string, expected: string): number {
   if (!normalizedOption || !normalizedExpected) return 0;
   if (normalizedOption === normalizedExpected) return 100;
 
-  // 院校名称不可按包含关系猜选：“西北工业大学明德学院”并非“西北工业大学”。
+  // 院校名称不可按包含关系猜选：“示例大学明德学院”并非“示例大学”。
   // 只容忍上面已经消除的空白、大小写和常见标点差异。
   if (/(?:大学|学院|university|college|institute)/i.test(expected)
     && /(?:大学|学院|university|college|institute)/i.test(option)

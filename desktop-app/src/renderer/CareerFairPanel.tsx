@@ -36,7 +36,7 @@ export function CareerFairPanel({ careerFair, busy, onClose, onSave }: CareerFai
             <label><span>举办形式</span><select aria-label="招聘会举办形式" value={form.mode} onChange={event => update('mode', event.target.value as DesktopCareerFairInput['mode'])}>{CAREER_FAIR_MODES.map(mode => <option key={mode}>{mode}</option>)}</select></label>
             <label><span>开始时间</span><input required aria-label="招聘会开始时间" type="datetime-local" value={form.startsAt} onChange={event => update('startsAt', event.target.value)} /></label>
             <label><span>结束时间</span><input aria-label="招聘会结束时间" type="datetime-local" value={form.endsAt} onChange={event => update('endsAt', event.target.value)} /></label>
-            <label className="form-span-two"><span>地点 / 线上会议说明</span><input aria-label="招聘会地点" value={form.location} onChange={event => update('location', event.target.value)} placeholder="例如：长安校区启真楼一楼 / 腾讯会议" /></label>
+            <label className="form-span-two"><span>地点 / 线上会议说明</span><input aria-label="招聘会地点" value={form.location} onChange={event => update('location', event.target.value)} placeholder="例如：中心校区会展中心一楼 / 视频会议" /></label>
             <label><span>主办方</span><input aria-label="招聘会主办方" value={form.organizer} onChange={event => update('organizer', event.target.value)} placeholder="学校、学院或招聘平台" /></label>
             <label><span>报名截止时间</span><input aria-label="招聘会报名截止时间" type="datetime-local" value={form.registrationDeadline} onChange={event => update('registrationDeadline', event.target.value)} /></label>
             <label className="form-span-two"><span>报名 / 详情链接</span><input aria-label="招聘会链接" type="url" value={form.eventUrl} onChange={event => update('eventUrl', event.target.value)} placeholder="https://" /></label>

@@ -35,7 +35,7 @@ function createProfile(): UserProfile {
 function createPayload(): VisualRegionFillPayload {
   return {
     requestId: 'req-1',
-    domain: 'jobs.bytedance.com',
+    domain: 'jobs.example.com',
     image: {
       base64: 'ZmFrZQ==',
       mimeType: 'image/png',
@@ -129,7 +129,7 @@ function stubChromeForCapture() {
 test('不再在 background 层根据视觉能力预检查阻断请求', async () => {
   const response = await handleVisualRegionFill({
     requestId: 'req-1',
-    domain: 'jobs.bytedance.com',
+    domain: 'jobs.example.com',
     image: { base64: 'ZmFrZQ==', mimeType: 'image/png', width: 10, height: 10 },
     controls: [],
     region: { x: 0, y: 0, width: 10, height: 10 },
@@ -367,7 +367,7 @@ test('background index 会为无图请求补截图后再进入 AI_FILL_VISUAL_RE
       },
     },
     tabs: {
-      get: async () => ({ id: 1, url: 'https://jobs.bytedance.com' }),
+      get: async () => ({ id: 1, url: 'https://jobs.example.com' }),
       sendMessage: async () => ({ success: true, data: { written: true } }),
       captureVisibleTab: async () => 'data:image/png;base64,c2NyZWVuc2hvdA==',
     },

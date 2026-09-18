@@ -73,10 +73,10 @@ const completeData: BackupData = {
   applicationRecords: [
     {
       id: 'record-1',
-      companyName: '字节跳动',
+      companyName: '星河软件',
       jobTitle: '前端开发',
-      sourceSite: 'jobs.bytedance.com',
-      sourceUrl: 'https://jobs.bytedance.com/example-1',
+      sourceSite: 'jobs.example.com',
+      sourceUrl: 'https://jobs.example.com/example-1',
       status: '已投递',
       notes: '一志愿',
       appliedAt: '2026-01-01',
@@ -108,7 +108,7 @@ test('合法 V1 文档保留简历并把旧 API Key 放入迁移区', () => {
   assert.equal(result.document.data.resumeProfileLibrary.profiles[0]?.profile.resume?.fileData, legacyUserProfile.resume?.fileData);
   assert.equal(result.document.data.llmConfig?.apiKey, '');
   assert.equal(result.document.legacySecrets?.llmApiKey, 'sk-secret');
-  assert.equal(result.document.data.applicationRecords?.[0]?.companyName, '字节跳动');
+  assert.equal(result.document.data.applicationRecords?.[0]?.companyName, '星河软件');
 });
 
 test('合法 V1 文档完整保留自定义视觉开关', () => {
@@ -455,7 +455,7 @@ test('投递记录 CSV 以上传覆盖方式写入固定文件', async () => {
   try {
     const result = await putRemoteApplicationRecordsCsv(
       webdavConfig,
-      'companyName,jobTitle\n字节跳动,前端开发',
+      'companyName,jobTitle\n星河软件,测试岗位A',
     );
     assert.equal(
       capturedUrl,
@@ -710,9 +710,9 @@ test('仅远端变化时下载并替换本地业务数据', async () => {
       {
         ...completeData.applicationRecords![0]!,
         id: 'remote-record',
-        companyName: '腾讯',
-        sourceSite: 'join.qq.com',
-        sourceUrl: 'https://join.qq.com/example-2',
+        companyName: '云帆通信',
+        sourceSite: 'jobs.example.com',
+        sourceUrl: 'https://jobs.example.com/example-2',
         location: '深圳',
       },
     ],

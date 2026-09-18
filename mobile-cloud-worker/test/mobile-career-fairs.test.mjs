@@ -17,7 +17,7 @@ test('手机端招聘会按开始时间从早到晚排列', () => {
 
 test('手机端筛选招聘会后仍按开始时间升序', () => {
   const fairs = [
-    { name: '秋招双选会', location: '长安校区', startsAt: '2026-09-15T14:00' },
+    { name: '秋招双选会', location: '中心校区', startsAt: '2026-09-15T14:00' },
     { name: '综合招聘会', targetCompanies: '目标公司', startsAt: '2026-09-13T09:00' },
     { name: '秋招专场', notes: '目标公司展位', startsAt: '2026-09-14T10:00' },
   ];

@@ -196,7 +196,7 @@ export function ApplicationRecordCreateApp() {
                 type="text"
                 value={form.sourceSite}
                 onChange={event => updateField('sourceSite', event.target.value)}
-                placeholder="如 jobs.bytedance.com"
+                placeholder="如 jobs.example.com"
                 disabled={loading || saving}
               />
             </label>

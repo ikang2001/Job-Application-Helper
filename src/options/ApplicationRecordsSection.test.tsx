@@ -35,10 +35,10 @@ console.error = (...args: unknown[]) => {
 const records: ApplicationRecord[] = [
   {
     id: 'r1',
-    companyName: '字节跳动',
+    companyName: '星河软件',
     jobTitle: '前端开发',
-    sourceSite: 'jobs.bytedance.com',
-    sourceUrl: 'https://jobs.bytedance.com/example-1',
+    sourceSite: 'jobs.example.com',
+    sourceUrl: 'https://jobs.example.com/example-1',
     status: '已投递',
     notes: '一志愿',
     appliedAt: '2026-08-07',
@@ -48,14 +48,14 @@ const records: ApplicationRecord[] = [
   },
   {
     id: 'r2',
-    companyName: '腾讯',
+    companyName: '云帆通信',
     jobTitle: '产品经理',
-    sourceSite: 'join.qq.com',
-    sourceUrl: 'https://join.qq.com/example-2',
+    sourceSite: 'jobs.example.com',
+    sourceUrl: 'https://jobs.example.com/example-2',
     status: '面试中',
     notes: '',
     appliedAt: '2026-08-06',
-    location: '深圳',
+    location: '示例城市B',
     createdAt: '2026-08-06T10:00:00.000Z',
     updatedAt: '2026-08-06T10:00:00.000Z',
   },
@@ -195,10 +195,10 @@ test('支持按点击顺序进行多列排序', async () => {
   const sortRecords: ApplicationRecord[] = [
     {
       id: 's1',
-      companyName: '腾讯',
+      companyName: '云帆通信',
       jobTitle: '前端开发',
-      sourceSite: 'join.qq.com',
-      sourceUrl: 'https://join.qq.com/a',
+      sourceSite: 'jobs.example.com',
+      sourceUrl: 'https://jobs.example.com/a',
       status: '已投递',
       notes: '',
       appliedAt: '2026-08-07',
@@ -208,10 +208,10 @@ test('支持按点击顺序进行多列排序', async () => {
     },
     {
       id: 's2',
-      companyName: '腾讯',
+      companyName: '云帆通信',
       jobTitle: '前端开发',
-      sourceSite: 'join.qq.com',
-      sourceUrl: 'https://join.qq.com/b',
+      sourceSite: 'jobs.example.com',
+      sourceUrl: 'https://jobs.example.com/b',
       status: '已投递',
       notes: '',
       appliedAt: '2026-08-06',
@@ -221,10 +221,10 @@ test('支持按点击顺序进行多列排序', async () => {
     },
     {
       id: 's3',
-      companyName: '字节跳动',
+      companyName: '星河软件',
       jobTitle: '前端开发',
-      sourceSite: 'jobs.bytedance.com',
-      sourceUrl: 'https://jobs.bytedance.com/c',
+      sourceSite: 'jobs.example.com',
+      sourceUrl: 'https://jobs.example.com/c',
       status: '已投递',
       notes: '',
       appliedAt: '2026-08-09',
@@ -249,8 +249,8 @@ test('支持按点击顺序进行多列排序', async () => {
     findButton(renderer.root, '列头-投递日期').props.onClick();
   });
 
-  assert.deepEqual(getRowCompanies(renderer.root), ['腾讯', '腾讯', '字节跳动']);
-  assert.deepEqual(getRowAppliedDates(renderer.root), ['2026-08-07', '2026-08-06', '2026-08-09']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['星河软件', '云帆通信', '云帆通信']);
+  assert.deepEqual(getRowAppliedDates(renderer.root), ['2026-08-09', '2026-08-07', '2026-08-06']);
 });
 
 test('表格顶部提供常驻公司搜索且不重复放置岗位和状态搜索框', async () => {
@@ -272,10 +272,10 @@ test('常驻公司搜索直接筛选已投递公司', async () => {
   });
 
   await act(async () => {
-    findInputByAriaLabel(renderer.root, '搜索已投递公司').props.onChange({ target: { value: '腾讯' } });
+    findInputByAriaLabel(renderer.root, '搜索已投递公司').props.onChange({ target: { value: '云帆通信' } });
   });
 
-  assert.deepEqual(getRowCompanies(renderer.root), ['腾讯']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['云帆通信']);
 });
 
 test('同一天的记录默认及投递日期降序都把最晚投递放在最上面', async () => {
@@ -283,7 +283,7 @@ test('同一天的记录默认及投递日期降序都把最晚投递放在最�
     {
       ...records[0],
       id: 'same-day-early',
-      companyName: '上海巨人',
+      companyName: '示例游戏',
       appliedAt: '2026-09-09',
       createdAt: '2026-09-09T09:15:00.000Z',
       updatedAt: '2026-09-09T09:15:00.000Z',
@@ -291,7 +291,7 @@ test('同一天的记录默认及投递日期降序都把最晚投递放在最�
     {
       ...records[1],
       id: 'same-day-late',
-      companyName: '蔚来',
+      companyName: '远景汽车',
       appliedAt: '2026-09-09',
       createdAt: '2026-09-09T18:40:00.000Z',
       updatedAt: '2026-09-09T18:40:00.000Z',
@@ -302,11 +302,11 @@ test('同一天的记录默认及投递日期降序都把最晚投递放在最�
     renderer = TestRenderer.create(<ApplicationRecordsSection initialRecords={sameDayRecords} />);
   });
 
-  assert.deepEqual(getRowCompanies(renderer.root), ['蔚来', '上海巨人']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['远景汽车', '示例游戏']);
   await act(async () => findButton(renderer.root, '列头-投递日期').props.onClick());
-  assert.deepEqual(getRowCompanies(renderer.root), ['上海巨人', '蔚来']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['示例游戏', '远景汽车']);
   await act(async () => findButton(renderer.root, '列头-投递日期').props.onClick());
-  assert.deepEqual(getRowCompanies(renderer.root), ['蔚来', '上海巨人']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['远景汽车', '示例游戏']);
 });
 
 test('点击公司列标题即可排序，不依赖单独图标按钮', async () => {
@@ -319,7 +319,7 @@ test('点击公司列标题即可排序，不依赖单独图标按钮', async ()
     findButton(renderer.root, '列头-公司').props.onClick();
   });
 
-  assert.deepEqual(getRowCompanies(renderer.root), ['腾讯', '字节跳动']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['星河软件', '云帆通信']);
 });
 
 test('点击筛选按钮后出现统一筛选面板并可筛选结果', async () => {
@@ -334,10 +334,10 @@ test('点击筛选按钮后出现统一筛选面板并可筛选结果', async ()
 
   const filterInput = findInputByAriaLabel(renderer.root, '筛选-公司');
   await act(async () => {
-    filterInput.props.onChange({ target: { value: '腾讯' } });
+    filterInput.props.onChange({ target: { value: '云帆通信' } });
   });
 
-  assert.deepEqual(getRowCompanies(renderer.root), ['腾讯']);
+  assert.deepEqual(getRowCompanies(renderer.root), ['云帆通信']);
 });
 
 test('浏览态下链接列渲染为可点击链接文本', async () => {
@@ -347,7 +347,7 @@ test('浏览态下链接列渲染为可点击链接文本', async () => {
   });
 
   const anchors = renderer.root.findAll(node => node.type === 'a');
-  assert.ok(anchors.some(node => node.props.href === 'https://jobs.bytedance.com/example-1'));
+  assert.ok(anchors.some(node => node.props.href === 'https://jobs.example.com/example-1'));
 });
 
 test('点击编辑后当前行直接进入编辑态', async () => {
@@ -374,7 +374,7 @@ test('编辑态下链接列为普通文本输入框', async () => {
     findButton(renderer.root, '编辑').props.onClick();
   });
 
-  const urlInput = renderer.root.findAll(node => node.type === 'input' && node.props.value === 'https://jobs.bytedance.com/example-1')[0];
+  const urlInput = renderer.root.findAll(node => node.type === 'input' && node.props.value === 'https://jobs.example.com/example-1')[0];
   assert.ok(urlInput);
 });
 
@@ -494,7 +494,7 @@ test('IMPORT_APPLICATION_RECORDS_CSV 发送失败时展示失败提示', async (
   const sentMessages: Message[] = [];
   const file = {
     async text() {
-      return 'companyName\n字节跳动';
+      return 'companyName\n星河软件';
     },
   };
 
@@ -518,7 +518,7 @@ test('IMPORT_APPLICATION_RECORDS_CSV 发送失败时展示失败提示', async (
     });
 
     assert.equal(sentMessages.at(-1)?.type, 'IMPORT_APPLICATION_RECORDS_CSV');
-    assert.equal((sentMessages.at(-1) as Extract<Message, { type: 'IMPORT_APPLICATION_RECORDS_CSV' }>).payload.csv, 'companyName\n字节跳动');
+    assert.equal((sentMessages.at(-1) as Extract<Message, { type: 'IMPORT_APPLICATION_RECORDS_CSV' }>).payload.csv, 'companyName\n星河软件');
     assert.equal(target.value, '');
     assert.match(getAlertTexts(renderer.root).join('\n'), /导入失败/);
   });

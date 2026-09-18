@@ -52,10 +52,10 @@ test('命中同公司同链接时新建页显示已存在提示但保留继续�
     success: true,
     data: {
       draft: {
-        companyName: '字节跳动',
+        companyName: '星河软件',
         jobTitle: '',
-        sourceSite: 'jobs.bytedance.com',
-        sourceUrl: 'https://jobs.bytedance.com/example',
+        sourceSite: 'jobs.example.com',
+        sourceUrl: 'https://jobs.example.com/example',
         status: '已投递',
         notes: '',
         appliedAt: '2026-08-07',
@@ -63,10 +63,10 @@ test('命中同公司同链接时新建页显示已存在提示但保留继续�
       },
       duplicate: {
         id: 'existing-record',
-        companyName: '字节跳动',
+        companyName: '星河软件',
         jobTitle: '',
-        sourceSite: 'jobs.bytedance.com',
-        sourceUrl: 'https://jobs.bytedance.com/example',
+        sourceSite: 'jobs.example.com',
+        sourceUrl: 'https://jobs.example.com/example',
         status: '已投递',
         notes: '',
         appliedAt: '2026-08-07',
@@ -117,10 +117,10 @@ test('保存成功后自动关闭新建记录窗口', async () => {
         success: true,
         data: {
           draft: {
-            companyName: '字节跳动',
+            companyName: '星河软件',
             jobTitle: '',
-            sourceSite: 'jobs.bytedance.com',
-            sourceUrl: 'https://jobs.bytedance.com/example',
+            sourceSite: 'jobs.example.com',
+            sourceUrl: 'https://jobs.example.com/example',
             status: '已投递',
             notes: '',
             appliedAt: '2026-08-08',

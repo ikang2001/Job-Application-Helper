@@ -39,12 +39,12 @@ function record(overrides: Partial<DesktopRecordInput> = {}): ApplicationRecord 
 function careerFair(overrides: Partial<CareerFair> = {}): CareerFair {
   return {
     id: 'fair-1',
-    name: '西北工业大学秋季双选会',
+    name: '示例大学秋季双选会',
     status: '已报名',
     startsAt: '2026-09-12T09:00',
     endsAt: '2026-09-12T16:00',
     mode: '线下',
-    location: '长安校区启真楼一楼',
+    location: '中心校区会展中心一楼',
     organizer: '就业指导中心',
     registrationDeadline: '2026-09-11T18:00',
     eventUrl: 'https://career.example.com/fair',
@@ -191,8 +191,8 @@ test('桌面提醒可独立关闭且近期安排入口始终保留', async () =>
 test('近期安排按独立入口展示下一项及开始截止语义', async () => {
   const originalWindow = globalThis.window;
   const scheduled = record({
-    companyName: '新华三集团',
-    jobTitle: 'AI 大模型算法工程师',
+    companyName: '新辰集团',
+    jobTitle: '模型算法工程师',
     recruitmentSchedule: {
       assessment: {
         scheduledAt: '2099-09-25T13:47',
@@ -218,9 +218,9 @@ test('近期安排按独立入口展示下一项及开始截止语义', async ()
   try {
     await act(async () => renderer.root.findByProps({ 'aria-label': '查看近期安排，共 1 项' }).props.onClick());
     const panel = renderer.root.findByProps({ 'aria-label': '近期安排' });
-    assert.match(text(panel), /新华三集团/);
+    assert.match(text(panel), /新辰集团/);
     assert.match(text(panel), /测评截止/);
-    assert.match(text(panel), /AI 大模型算法工程师/);
+    assert.match(text(panel), /模型算法工程师/);
     assert.match(text(panel), /桌面弹窗提醒已开启/);
     await act(async () => {
       button(renderer, '✓ 标记已完成').props.onClick();
@@ -291,8 +291,8 @@ test('左侧最上方招聘会栏目展示时间地点和求职准备信息', as
     const fairButton = renderer.root.findByProps({ 'aria-label': '招聘会 1 场' });
     await act(async () => fairButton.props.onClick());
     const content = text(renderer.root);
-    assert.match(content, /西北工业大学秋季双选会/);
-    assert.match(content, /长安校区启真楼一楼/);
+    assert.match(content, /示例大学秋季双选会/);
+    assert.match(content, /中心校区会展中心一楼/);
     assert.match(content, /示例科技、未来智能/);
     assert.match(content, /纸质简历 5 份、成绩单/);
   } finally {
@@ -303,19 +303,19 @@ test('左侧最上方招聘会栏目展示时间地点和求职准备信息', as
 
 test('招聘邮件未经人工确认不改状态，确认时提交所选公司岗位和实际阶段', async () => {
   const originalWindow = globalThis.window;
-  const first = record({ id: 'mail-record-1', companyName: '锐捷网络', jobTitle: 'AI 开发工程师' });
-  const second = record({ id: 'mail-record-2', companyName: '锐捷网络', jobTitle: '算法工程师' });
+  const first = record({ id: 'mail-record-1', companyName: '星河网络', jobTitle: '测试岗位A' });
+  const second = record({ id: 'mail-record-2', companyName: '星河网络', jobTitle: '测试岗位B' });
   const review: DesktopMailReview = {
     id: 'mail-review-1',
     accountId: 'mail-account-1',
     messageId: 'message-1',
     from: 'campus@example.com',
-    subject: '锐捷网络 AI面试邀约',
+    subject: '星河网络 AI面试邀约',
     receivedAt: NOW,
     summary: '请在规定时间内完成 AI 面试。',
     category: 'interview_invite',
     suggestedStage: 'ai',
-    companyName: '锐捷网络',
+    companyName: '星河网络',
     candidateRecordIds: [first.id, second.id],
     deadlineAt: '2026-09-05T08:00:00',
     actionUrl: 'https://assessment.example.com/ai',
@@ -347,13 +347,13 @@ test('招聘邮件未经人工确认不改状态，确认时提交所选公司�
     assert.equal(initialState.records[0]?.status, '已投递');
     assert.equal(decision, undefined);
 
-    const recordSelect = renderer.root.findByProps({ 'aria-label': '锐捷网络 AI面试邀约 对应投递岗位' });
-    const stageSelect = renderer.root.findByProps({ 'aria-label': '锐捷网络 AI面试邀约 邮件阶段' });
+    const recordSelect = renderer.root.findByProps({ 'aria-label': '星河网络 AI面试邀约 对应投递岗位' });
+    const stageSelect = renderer.root.findByProps({ 'aria-label': '星河网络 AI面试邀约 邮件阶段' });
     assert.equal(stageSelect.props.value, 'ai');
     await act(async () => recordSelect.props.onChange({ target: { value: second.id } }));
     await act(async () => stageSelect.props.onChange({ target: { value: 'first' } }));
-    assert.equal(renderer.root.findByProps({ 'aria-label': '锐捷网络 AI面试邀约 邮件阶段' }).props.value, 'first');
-    await act(async () => renderer.root.findByProps({ 'aria-label': '锐捷网络 AI面试邀约 邮件阶段' }).props.onChange({ target: { value: 'ai' } }));
+    assert.equal(renderer.root.findByProps({ 'aria-label': '星河网络 AI面试邀约 邮件阶段' }).props.value, 'first');
+    await act(async () => renderer.root.findByProps({ 'aria-label': '星河网络 AI面试邀约 邮件阶段' }).props.onChange({ target: { value: 'ai' } }));
     assert.equal(decision, undefined);
 
     await act(async () => {
@@ -377,18 +377,18 @@ test('招聘邮件未经人工确认不改状态，确认时提交所选公司�
 });
 
 test('后台补齐邮件截止时间后当前审核卡片立即刷新且不覆盖人工时间', async () => {
-  const current = record({ id: 'anker-record', companyName: '安克创新', jobTitle: 'AI应用工程师-深圳' });
+  const current = record({ id: 'bridge-record', companyName: '星桥创新', jobTitle: '应用工程师' });
   const review: DesktopMailReview = {
     id: 'anker-review',
     accountId: 'mail-account-1',
     messageId: 'message-anker',
-    from: '安克创新招聘',
-    subject: '【安克创新校招测评】2027届校园招聘',
+    from: '星桥创新招聘',
+    subject: '【星桥创新校招测评】2027届校园招聘',
     receivedAt: '2026-09-11T05:28:29.000Z',
     summary: '链接有效期5天，请合理安排时间。',
     category: 'assessment_invite',
     suggestedStage: 'assessment',
-    companyName: '安克创新',
+    companyName: '星桥创新',
     candidateRecordIds: [current.id],
     state: 'pending',
   };
@@ -427,14 +427,14 @@ test('后台补齐邮件截止时间后当前审核卡片立即刷新且不覆�
 });
 
 test('未匹配邮件可按公司或岗位搜索投递记录且后台匹配后自动选中唯一岗位', async () => {
-  const kingdee = record({ id: 'kingdee-record', companyName: '金蝶软件（中国）有限公司', jobTitle: 'AI agent开发工程师（深圳）' });
-  const anker = record({ id: 'anker-record', companyName: '安克创新', jobTitle: 'AI应用工程师-深圳' });
+  const cloudHub = record({ id: 'cloud-hub-record', companyName: '云枢软件（中国）有限公司', jobTitle: '平台开发工程师' });
+  const bridge = record({ id: 'bridge-record', companyName: '星桥创新', jobTitle: '应用工程师' });
   const review: DesktopMailReview = {
-    id: 'kingdee-review',
+    id: 'cloud-hub-review',
     accountId: 'mail-account-1',
     messageId: 'message-kingdee',
     from: '招聘小秘书',
-    subject: '来自金蝶2027届校园招聘的笔试邀请',
+    subject: '来自云枢2027届校园招聘的笔试邀请',
     receivedAt: '2026-09-11T07:24:21.000Z',
     summary: '请完成线上笔试。',
     category: 'assessment_invite',
@@ -447,7 +447,7 @@ test('未匹配邮件可按公司或岗位搜索投递记录且后台匹配后�
   const renderView = (nextReview: DesktopMailReview) => (
     <MailInboxView
       inbox={{ ...inbox, reviews: [nextReview] }}
-      records={[anker, kingdee]}
+      records={[bridge, cloudHub]}
       busy={false}
       onScan={() => {}}
       onConfirm={() => {}}
@@ -462,19 +462,68 @@ test('未匹配邮件可按公司或岗位搜索投递记录且后台匹配后�
   try {
     const search = renderer.root.findByProps({ 'aria-label': `${review.subject} 搜索投递公司或岗位` });
     const select = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 对应投递岗位` });
-    await act(async () => search.props.onChange({ target: { value: '金蝶' } }));
-    assert.match(text(select()), /金蝶软件（中国）有限公司/);
-    assert.doesNotMatch(text(select()), /安克创新/);
-    assert.equal(select().props.value, kingdee.id);
+    await act(async () => search.props.onChange({ target: { value: '云枢' } }));
+    assert.match(text(select()), /云枢软件（中国）有限公司/);
+    assert.doesNotMatch(text(select()), /星桥创新/);
+    assert.equal(select().props.value, cloudHub.id);
 
     await act(async () => {
       renderer.update(renderView({
         ...review,
-        companyName: kingdee.companyName,
-        candidateRecordIds: [kingdee.id],
+        companyName: cloudHub.companyName,
+        candidateRecordIds: [cloudHub.id],
       }));
     });
-    assert.equal(select().props.value, kingdee.id);
+    assert.equal(select().props.value, cloudHub.id);
+  } finally {
+    await act(async () => renderer.unmount());
+  }
+});
+
+test('误匹配邮件可搜索全部投递记录并自动选中新添加的正确公司岗位', async () => {
+  const contentFirst = record({ id: 'content-record-1', companyName: '星河内容', jobTitle: '内容开发工程师' });
+  const contentSecond = record({ id: 'content-record-2', companyName: '星河内容', jobTitle: '平台算法工程师' });
+  const cloudTech = record({ id: 'cloud-tech-record', companyName: '云杉科技', jobTitle: '平台开发工程师' });
+  const review: DesktopMailReview = {
+    id: 'cloud-tech-review',
+    accountId: 'mail-account-1',
+    messageId: 'message-cloud-tech',
+    from: 'Campus_HR <recruit@example.com>',
+    subject: '【云杉科技招聘】笔试通知',
+    receivedAt: '2026-09-17T10:00:09.000Z',
+    summary: '笔试信息不得发布在星河内容、短视频、职场社区等公开平台。',
+    category: 'assessment_invite',
+    suggestedStage: 'writtenTest',
+    companyName: '星河内容',
+    candidateRecordIds: [contentFirst.id, contentSecond.id],
+    deadlineAt: '2026-09-19T16:00:00',
+    state: 'pending',
+  };
+  const inbox = { status: 'idle' as const, accounts: [], reviews: [review], pendingCount: 1 };
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <MailInboxView
+        inbox={inbox}
+        records={[contentFirst, contentSecond, cloudTech]}
+        busy={false}
+        onScan={() => {}}
+        onConfirm={() => {}}
+        onIgnore={() => {}}
+        onIgnoreMany={() => {}}
+        onOpenUrl={() => {}}
+      />,
+    );
+  });
+
+  try {
+    const search = renderer.root.findByProps({ 'aria-label': `${review.subject} 搜索投递公司或岗位` });
+    const select = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 对应投递岗位` });
+    await act(async () => search.props.onChange({ target: { value: '云杉科技' } }));
+
+    assert.match(text(select()), /云杉科技 · 平台开发工程师/);
+    assert.doesNotMatch(text(select()), /星河内容/);
+    assert.equal(select().props.value, cloudTech.id);
   } finally {
     await act(async () => renderer.unmount());
   }
@@ -482,17 +531,17 @@ test('未匹配邮件可按公司或岗位搜索投递记录且后台匹配后�
 
 test('招聘邮箱可全选当前待审核邮件并批量忽略且不修改岗位状态', async () => {
   const originalWindow = globalThis.window;
-  const current = record({ id: 'batch-record-1', companyName: '汇川技术', jobTitle: '开发工程师' });
+  const current = record({ id: 'batch-record-1', companyName: '云帆技术', jobTitle: '测试岗位C' });
   const first: DesktopMailReview = {
     id: 'batch-review-1',
     accountId: 'mail-account-1',
     messageId: '201',
     from: 'campus@example.com',
-    subject: '汇川技术测评通知',
+    subject: '云帆技术测评通知',
     receivedAt: NOW,
     summary: '请完成人才测评。',
     category: 'assessment_invite',
-    companyName: '汇川技术',
+    companyName: '云帆技术',
     candidateRecordIds: [current.id],
     state: 'pending',
   };
@@ -500,7 +549,7 @@ test('招聘邮箱可全选当前待审核邮件并批量忽略且不修改岗�
     ...first,
     id: 'batch-review-2',
     messageId: '202',
-    subject: '汇川技术招聘沟通',
+    subject: '云帆技术招聘沟通',
   };
   const initialState = state([current]);
   initialState.mailInbox = {

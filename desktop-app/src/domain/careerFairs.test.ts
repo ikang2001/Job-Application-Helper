@@ -17,7 +17,7 @@ function input(name: string, startsAt: string) {
     startsAt,
     endsAt: '',
     mode: '线下' as const,
-    location: '启真楼一楼',
+    location: '会展中心一楼',
     organizer: '就业指导中心',
     registrationDeadline: '',
     eventUrl: 'https://career.example.com/fair',
@@ -31,7 +31,7 @@ function input(name: string, startsAt: string) {
 test('招聘会可新建、更新和删除且保留创建时间', () => {
   const created = saveCareerFair([], input('秋季双选会', '2026-09-12T09:00'), NOW);
   const updated = saveCareerFair(created.careerFairs, {
-    ...input('秋季双选会（长安校区）', '2026-09-12T09:00'),
+    ...input('秋季双选会（中心校区）', '2026-09-12T09:00'),
     id: created.careerFair.id,
     status: '已报名',
   }, '2026-09-10T08:00:00.000Z');

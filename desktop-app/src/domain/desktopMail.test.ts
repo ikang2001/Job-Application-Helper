@@ -36,12 +36,12 @@ function review(overrides: Partial<DesktopMailReview> = {}): DesktopMailReview {
     accountId: 'account-1',
     messageId: '100',
     from: 'hr@example.com',
-    subject: '锐捷网络 AI面试邀约',
+    subject: '星河网络 AI面试邀约',
     receivedAt: '2026-09-09T10:00:00.000Z',
     summary: '请于指定时间前完成 AI 面试。',
     category: 'interview_invite',
     suggestedStage: 'ai',
-    companyName: '锐捷网络',
+    companyName: '星河网络',
     candidateRecordIds: [],
     extractedAt: '2026-09-12T19:00:00',
     actionUrl: 'https://meeting.example.com/ai',
@@ -52,23 +52,23 @@ function review(overrides: Partial<DesktopMailReview> = {}): DesktopMailReview {
 
 test('桌面招聘邮箱只按公司匹配并返回该公司的全部投递岗位', () => {
   const records = [
-    record('锐捷网络', 'AI 开发工程师', 'https://jobs.example.com/1'),
-    record('锐捷网络股份有限公司', 'AI 算法工程师', 'https://jobs.example.com/2'),
-    record('汇川技术', 'IT 开发工程师', 'https://jobs.example.com/3'),
+    record('星河网络', '测试岗位A', 'https://jobs.example.com/1'),
+    record('星河网络股份有限公司', '测试岗位B', 'https://jobs.example.com/2'),
+    record('云帆技术', '测试岗位C', 'https://jobs.example.com/3'),
   ];
-  const match = matchDesktopMailCompany('锐捷网络 2027 届 AI 面试邀约', undefined, records);
-  assert.equal(match.companyName, '锐捷网络');
+  const match = matchDesktopMailCompany('星河网络 2027 届 AI 面试邀约', undefined, records);
+  assert.equal(match.companyName, '星河网络');
   assert.deepEqual(new Set(match.recordIds), new Set(records.slice(0, 2).map(item => item.id)));
 });
 
 test('集团名可匹配技术公司法人名且不会在同简称公司之间猜测', () => {
-  const h3c = record('新华三集团', '技术支持工程师', 'https://jobs.example.com/h3c');
+  const h3c = record('新辰集团', '测试岗位D', 'https://jobs.example.com/newstar');
   const match = matchDesktopMailCompany(
-    '请参加新华三技术有限公司的在线测评',
-    '新华三技术有限公司',
+    '请参加新辰技术有限公司的在线测评',
+    '新辰技术有限公司',
     [h3c],
   );
-  assert.equal(match.companyName, '新华三集团');
+  assert.equal(match.companyName, '新辰集团');
   assert.deepEqual(match.recordIds, [h3c.id]);
 
   const first = record('星云技术有限公司', '开发工程师', 'https://jobs.example.com/nebula-tech');
@@ -80,51 +80,51 @@ test('集团名可匹配技术公司法人名且不会在同简称公司之间�
 
 test('邮件简称可匹配带地域前缀和法律后缀的公司名称', () => {
   const transsion = record(
-    '深圳传音控股股份有限公司',
-    'AI Agent 工程开发工程师',
-    'https://career.transsion.com/job/1',
+    '深圳远航控股股份有限公司',
+    '智能开发工程师',
+    'https://jobs.example.com/transmission/1',
   );
   const match = matchDesktopMailCompany(
-    '在线测评邀请——传音控股2027届校园招聘',
-    '传音控股',
+    '在线测评邀请——远航控股2027届校园招聘',
+    '远航控股',
     [transsion],
   );
 
-  assert.equal(match.companyName, '深圳传音控股股份有限公司');
+  assert.equal(match.companyName, '深圳远航控股股份有限公司');
   assert.deepEqual(match.recordIds, [transsion.id]);
 });
 
 test('邮件中的品牌简称可匹配公司名括号内含地域的投递记录', () => {
   const kingdee = record(
-    '金蝶软件（中国）有限公司',
-    'AI agent开发工程师（深圳）',
-    'https://app.mokahr.com/job/kingdee',
+    '云枢软件（中国）有限公司',
+    '平台开发工程师',
+    'https://jobs.example.com/cloud-hub',
   );
   const match = matchDesktopMailCompany(
-    '来自金蝶2027届校园招聘的笔试邀请',
+    '来自云枢2027届校园招聘的笔试邀请',
     undefined,
     [kingdee],
   );
 
-  assert.equal(match.companyName, '金蝶软件（中国）有限公司');
+  assert.equal(match.companyName, '云枢软件（中国）有限公司');
   assert.deepEqual(match.recordIds, [kingdee.id]);
 });
 
 test('纯测评通知和 AI 面试邀约可给出建议，但仍需人工选择', () => {
-  assert.equal(suggestedDesktopMailStage('assessment_invite', '汇川技术校园招聘测评通知'), 'assessment');
+  assert.equal(suggestedDesktopMailStage('assessment_invite', '云帆技术校园招聘测评通知'), 'assessment');
   assert.equal(suggestedDesktopMailStage('assessment_invite', '编程笔试通知'), 'writtenTest');
-  assert.equal(suggestedDesktopMailStage('interview_invite', '锐捷网络 AI面试邀约'), 'ai');
+  assert.equal(suggestedDesktopMailStage('interview_invite', '星河网络 AI面试邀约'), 'ai');
   assert.equal(suggestedDesktopMailStage('interview_invite', '第三轮面试安排'), 'third');
   assert.equal(suggestedDesktopMailStage(
     'assessment_invite',
     '邮件正文同时介绍后续编程笔试流程',
-    '请参加新华三技术有限公司的在线测评',
+    '请参加新辰技术有限公司的在线测评',
   ), 'assessment');
 });
 
 test('人工确认 AI 面后才修改所选公司岗位状态和 AI 面安排', () => {
-  const target = record('锐捷网络', 'AI 算法工程师', 'https://jobs.example.com/1');
-  const other = record('锐捷网络', 'AI 开发工程师', 'https://jobs.example.com/2');
+  const target = record('星河网络', '测试岗位B', 'https://jobs.example.com/1');
+  const other = record('星河网络', '测试岗位A', 'https://jobs.example.com/2');
   const pending = review({ candidateRecordIds: [target.id, other.id] });
   const result = confirmDesktopMailReview([target, other], [pending], {
     reviewId: pending.id,
@@ -146,9 +146,9 @@ test('人工确认 AI 面后才修改所选公司岗位状态和 AI 面安排', 
 });
 
 test('人工确认时把只有日期的截止时间转换为桌面安排时间', () => {
-  const target = record('汇川技术', 'IT 开发工程师', 'https://jobs.example.com/3');
+  const target = record('云帆技术', '测试岗位C', 'https://jobs.example.com/3');
   const pending = review({
-    companyName: '汇川技术',
+    companyName: '云帆技术',
     candidateRecordIds: [target.id],
     category: 'assessment_invite',
     suggestedStage: 'assessment',
@@ -171,9 +171,9 @@ test('人工确认时把只有日期的截止时间转换为桌面安排时间',
 });
 
 test('人工审核可修正时间含义、链接并追加截止提示和补充说明', () => {
-  const target = record('新华三集团', 'AI 大模型算法工程师', 'https://jobs.example.com/h3c');
+  const target = record('新辰集团', '模型算法工程师', 'https://jobs.example.com/newstar');
   const pending = review({
-    companyName: '新华三集团',
+    companyName: '新辰集团',
     candidateRecordIds: [target.id],
     category: 'assessment_invite',
     suggestedStage: 'assessment',
@@ -198,14 +198,19 @@ test('人工审核可修正时间含义、链接并追加截止提示和补充�
   assert.match(result.records[0]?.notes ?? '', /完成前先检查摄像头/);
 });
 
-test('人工选择其他公司岗位时拒绝更新', () => {
+test('人工审核可纠正误匹配公司并更新所选岗位', () => {
   const reviewItem = review();
-  const wrong = record('汇川技术', 'IT 开发工程师', 'https://jobs.example.com/3');
-  assert.throws(() => confirmDesktopMailReview([wrong], [reviewItem], {
+  const corrected = record('云帆技术', '测试岗位C', 'https://jobs.example.com/3');
+  const result = confirmDesktopMailReview([corrected], [reviewItem], {
     reviewId: reviewItem.id,
-    recordId: wrong.id,
+    recordId: corrected.id,
     stage: 'assessment',
-  }), /不属于邮件匹配的公司/);
+  });
+
+  assert.equal(result.records[0]?.status, '笔试/测评');
+  assert.equal(result.reviews[0]?.companyName, '云帆技术');
+  assert.deepEqual(result.reviews[0]?.candidateRecordIds, [corrected.id]);
+  assert.equal(result.reviews[0]?.selectedRecordId, corrected.id);
 });
 
 test('批量忽略只处理所选待审核邮件且不接受已处理项', () => {
