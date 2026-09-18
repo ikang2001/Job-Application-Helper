@@ -12,7 +12,7 @@ import type {
 
 const NOW = '2026-09-09T12:00:00.000Z';
 
-function record(jobTitle: string, sourceUrl: string, companyName = '锐捷网络'): ApplicationRecord {
+function record(jobTitle: string, sourceUrl: string, companyName = '星河网络'): ApplicationRecord {
   return saveDesktopRecord([], {
     companyName,
     jobTitle,
@@ -46,9 +46,9 @@ class FakeNativeMailClient implements DesktopNativeMailPort {
     return {
       messages: [{
         id: '101',
-        from: { name: '锐捷招聘', address: 'recruit@example.com' },
+        from: { name: '星河招聘', address: 'recruit@example.com' },
         to: ['candidate@163.com'],
-        subject: '锐捷网络 AI面试邀约',
+        subject: '星河网络 AI面试邀约',
         receivedAt: '2026-09-09T10:00:00.000Z',
       }],
       cursor: { uidValidity: '1', lastUid: 101 },
@@ -61,9 +61,9 @@ class FakeNativeMailClient implements DesktopNativeMailPort {
     return {
       id: '101',
       accountId: 'account-1',
-      from: { name: '锐捷招聘', address: 'recruit@example.com' },
+      from: { name: '星河招聘', address: 'recruit@example.com' },
       to: ['candidate@163.com'],
-      subject: '锐捷网络 AI面试邀约',
+      subject: '星河网络 AI面试邀约',
       receivedAt: '2026-09-09T10:00:00.000Z',
       text: '请在 2026年9月12日 19:00 完成 AI面试：https://meeting.example.com/ai',
       truncated: false,
@@ -88,7 +88,7 @@ test('桌面招聘邮箱扫描只创建待审核项并按公司列出全部岗�
   assert.equal(client.tested, 1);
   assert.equal(client.getMessageCalls, 1);
   assert.equal(pending?.state, 'pending');
-  assert.equal(pending?.companyName, '锐捷网络');
+  assert.equal(pending?.companyName, '星河网络');
   assert.deepEqual(new Set(pending?.candidateRecordIds), new Set([first.id, second.id]));
   assert.equal(pending?.suggestedStage, 'ai');
   assert.equal(next.records[0]?.status, '已投递');
@@ -97,16 +97,16 @@ test('桌面招聘邮箱扫描只创建待审核项并按公司列出全部岗�
 });
 
 test('包含测评笔试或面试安排的邮件进入待审核，普通投递确认仍被过滤', async () => {
-  const target = record('技术支持工程师', 'https://jobs.example.com/h3c', '新华三集团');
+  const target = record('测试岗位D', 'https://jobs.example.com/newstar', '新辰集团');
   const messages: DesktopNativeMailMessage[] = [
     {
       id: '201',
       accountId: 'account-1',
-      from: { name: '新华三技术有限公司', address: 'recruit@example.com' },
+      from: { name: '新辰技术有限公司', address: 'recruit@example.com' },
       to: ['candidate@163.com'],
       subject: '感谢您投递本公司职位',
       receivedAt: '2026-09-10T05:47:07.000Z',
-      text: '新华三技术有限公司已收到你的简历，通过筛选后会安排面试。',
+      text: '新辰技术有限公司已收到你的简历，通过筛选后会安排面试。',
       truncated: false,
     },
     {
@@ -114,7 +114,7 @@ test('包含测评笔试或面试安排的邮件进入待审核，普通投递�
       accountId: 'account-1',
       from: { name: 'iTalent招聘助手', address: 'recruit@example.com' },
       to: ['candidate@163.com'],
-      subject: '请参加新华三技术有限公司的在线测评',
+      subject: '请参加新辰技术有限公司的在线测评',
       receivedAt: '2026-09-10T05:47:08.000Z',
       text: '请按邮件说明完成在线测评。',
       truncated: false,
@@ -139,9 +139,9 @@ test('包含测评笔试或面试安排的邮件进入待审核，普通投递�
   });
 
   assert.deepEqual(next.mailInbox?.reviews.map(review => review.subject), [
-    '请参加新华三技术有限公司的在线测评',
+    '请参加新辰技术有限公司的在线测评',
   ]);
-  assert.equal(next.mailInbox?.reviews[0]?.companyName, '新华三集团');
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '新辰集团');
   assert.equal(next.mailInbox?.reviews[0]?.suggestedStage, 'assessment');
 });
 
@@ -150,7 +150,7 @@ test('桌面端按邮件接收时间识别带空格的三天内测评截止时�
   client.listMessages = async () => ({
     messages: [{
       id: 'tcl-assessment-1',
-      from: { name: 'TCL招聘', address: 'tclzhaopin@example.com' },
+      from: { name: '晨光电子招聘', address: 'recruit@example.com' },
       to: ['candidate@163.com'],
       subject: '人才测评通知',
       receivedAt: '2026-09-15T06:15:34.000Z',
@@ -161,17 +161,17 @@ test('桌面端按邮件接收时间识别带空格的三天内测评截止时�
   client.getMessage = async () => ({
     id: 'tcl-assessment-1',
     accountId: 'account-1',
-    from: { name: 'TCL招聘', address: 'tclzhaopin@example.com' },
+    from: { name: '晨光电子招聘', address: 'recruit@example.com' },
     to: ['candidate@163.com'],
     subject: '人才测评通知',
     receivedAt: '2026-09-15T06:15:34.000Z',
-    text: '感谢您申请TCL校招岗位，现邀请您参加在线测评，请在收到通知的 3 天 内 完成测评。',
+    text: '感谢您申请晨光电子校招岗位，现邀请您参加在线测评，请在收到通知的 3 天 内 完成测评。',
     truncated: false,
   });
 
   const next = await new DesktopMailInboxService(client).scan({
     schemaVersion: 1,
-    records: [record('AI应用开发工程师', 'https://jobs.tcl.com/1', 'TCL')],
+    records: [record('应用开发工程师', 'https://jobs.example.com/morning-light/1', '晨光电子')],
     favoriteRecordIds: [],
     careerFairs: [],
     sync: { status: 'idle' },
@@ -181,24 +181,24 @@ test('桌面端按邮件接收时间识别带空格的三天内测评截止时�
   assert.equal(next.mailInbox?.reviews[0]?.deadlineAt, '2026-09-18T06:15:34.000Z');
 });
 
-test('邮件主题中的金蝶优先于正文奖学金证书造成的金证误匹配', async () => {
+test('邮件主题中的云枢优先于正文奖学金证书造成的云证误匹配', async () => {
   const kingdee = record(
-    'AI agent开发工程师（深圳）',
-    'https://app.mokahr.com/campus-recruitment/kingdeehr/job/1',
-    '金蝶软件（中国）有限公司',
+    '平台开发工程师',
+    'https://jobs.example.com/cloud-hub/1',
+    '云枢软件（中国）有限公司',
   );
   const kingsoft = record(
-    '大模型应用开发工程师',
+    '平台应用开发工程师',
     'https://jobs.example.com/kingsoft',
-    '金证科技',
+    '云证科技',
   );
   const client = new FakeNativeMailClient();
   client.listMessages = async () => ({
     messages: [{
       id: 'kingdee-interview-1',
-      from: { name: '招聘小秘书', address: 'kingdeehr-no-reply@mail.mokahr.com' },
+      from: { name: '云枢招聘', address: 'recruit@example.com' },
       to: ['candidate@163.com'],
-      subject: '金蝶2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
+      subject: '云枢2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
       receivedAt: '2026-09-15T12:16:34.000Z',
     }],
     cursor: { uidValidity: '1', lastUid: 204 },
@@ -207,11 +207,11 @@ test('邮件主题中的金蝶优先于正文奖学金证书造成的金证误�
   client.getMessage = async () => ({
     id: 'kingdee-interview-1',
     accountId: 'account-1',
-    from: { name: '招聘小秘书', address: 'kingdeehr-no-reply@mail.mokahr.com' },
+    from: { name: '云枢招聘', address: 'recruit@example.com' },
     to: ['candidate@163.com'],
-    subject: '金蝶2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
+    subject: '云枢2027届校园招聘业务初面邀请（邮件重要请仔细阅读）',
     receivedAt: '2026-09-15T12:16:34.000Z',
-    text: '恭喜你通过线上笔试，请参加金蝶业务初面。可补充奖学金证书等面试材料。面试时间：2026年9月16日 14:00。',
+    text: '恭喜你通过线上笔试，请参加云枢业务初面。可补充奖学金证书等面试材料。面试时间：2026年9月16日 14:00。',
     truncated: false,
   });
 
@@ -223,7 +223,7 @@ test('邮件主题中的金蝶优先于正文奖学金证书造成的金证误�
     sync: { status: 'idle' },
   });
 
-  assert.equal(next.mailInbox?.reviews[0]?.companyName, '金蝶软件（中国）有限公司');
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '云枢软件（中国）有限公司');
   assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, [kingdee.id]);
 });
 
@@ -273,7 +273,7 @@ test('已有待审核邮件根据链接有效期补齐截止时间且不重新�
   });
   const next = await new DesktopMailInboxService(client).scan({
     schemaVersion: 1,
-    records: [record('AI应用工程师-深圳', 'https://talent.anker-in.com/job', '安克创新')],
+    records: [record('应用工程师', 'https://jobs.example.com/star-bridge/job', '星桥创新')],
     favoriteRecordIds: [],
     careerFairs: [],
     sync: { status: 'idle' },
@@ -285,13 +285,13 @@ test('已有待审核邮件根据链接有效期补齐截止时间且不重新�
         id: 'mail-401',
         accountId: 'account-1',
         messageId: '401',
-        from: '安克创新招聘',
-        subject: '【安克创新校招测评】2027届校园招聘',
+        from: '星桥创新招聘',
+        subject: '【星桥创新校招测评】2027届校园招聘',
         receivedAt: '2026-09-11T06:00:00.000Z',
         summary: '请用简历中的姓名、邮箱完成认证;链接有效期5天,请合理安排时间。',
         category: 'assessment_invite',
         suggestedStage: 'assessment',
-        companyName: '安克创新',
+        companyName: '星桥创新',
         candidateRecordIds: [],
         state: 'pending',
       }],
@@ -303,7 +303,7 @@ test('已有待审核邮件根据链接有效期补齐截止时间且不重新�
   assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 401 });
 });
 
-test('已有未匹配的金蝶邮件根据品牌简称补齐对应岗位且不重新读取旧邮件', async () => {
+test('已有未匹配的云枢邮件根据品牌简称补齐对应岗位且不重新读取旧邮件', async () => {
   const client = new FakeNativeMailClient();
   client.listMessages = async (_accountId, options) => ({
     messages: [],
@@ -311,9 +311,9 @@ test('已有未匹配的金蝶邮件根据品牌简称补齐对应岗位且不�
     hasMore: false,
   });
   const kingdee = record(
-    'AI agent开发工程师（深圳）',
-    'https://app.mokahr.com/job/kingdee',
-    '金蝶软件（中国）有限公司',
+    '平台开发工程师',
+    'https://jobs.example.com/cloud-hub',
+    '云枢软件（中国）有限公司',
   );
   const next = await new DesktopMailInboxService(client).scan({
     schemaVersion: 1,
@@ -329,10 +329,10 @@ test('已有未匹配的金蝶邮件根据品牌简称补齐对应岗位且不�
         id: 'mail-501',
         accountId: 'account-1',
         messageId: '501',
-        from: '招聘小秘书 <kingdeehr-no-reply@mail.mokahr.com>',
-        subject: '来自金蝶2027届校园招聘的笔试邀请',
+        from: '云枢招聘 <recruit@example.com>',
+        subject: '来自云枢2027届校园招聘的笔试邀请',
         receivedAt: '2026-09-11T07:24:21.000Z',
-        summary: '恭喜你通过简历筛选，进入金蝶2027届校招线上笔试环节。',
+        summary: '恭喜你通过简历筛选，进入云枢2027届校招线上笔试环节。',
         category: 'assessment_invite',
         suggestedStage: 'writtenTest',
         candidateRecordIds: [],
@@ -342,9 +342,52 @@ test('已有未匹配的金蝶邮件根据品牌简称补齐对应岗位且不�
   });
 
   assert.equal(client.getMessageCalls, 0);
-  assert.equal(next.mailInbox?.reviews[0]?.companyName, '金蝶软件（中国）有限公司');
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '云枢软件（中国）有限公司');
   assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, [kingdee.id]);
   assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 501 });
+});
+
+test('新增云杉科技投递记录后纠正旧邮件的星河内容误匹配且不重新读取邮件', async () => {
+  const client = new FakeNativeMailClient();
+  client.listMessages = async (_accountId, options) => ({
+    messages: [],
+    cursor: options.cursor ?? { uidValidity: '1', lastUid: 0 },
+    hasMore: false,
+  });
+  const contentRecord = record('内容开发工程师', 'https://jobs.example.com/red', '星河内容');
+  const cloudTech = record('平台开发工程师', 'https://jobs.example.com/cloud/1', '云杉科技');
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [contentRecord, cloudTech],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+    mailInbox: {
+      status: 'idle',
+      accounts: [],
+      cursors: { 'account-1': { uidValidity: '1', lastUid: 601 } },
+      reviews: [{
+        id: 'mail-601',
+        accountId: 'account-1',
+        messageId: '601',
+        from: 'Campus_HR <recruit@example.com>',
+        subject: '【云杉科技招聘】笔试通知',
+        receivedAt: '2026-09-17T10:00:09.000Z',
+        summary: '笔试信息不得发布在星河内容、短视频、职场社区等公开平台。',
+        category: 'assessment_invite',
+        suggestedStage: 'writtenTest',
+        companyName: '星河内容',
+        candidateRecordIds: [contentRecord.id],
+        deadlineAt: '2026-09-19T16:00:00',
+        state: 'pending',
+      }],
+    },
+  });
+
+  assert.equal(client.getMessageCalls, 0);
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '云杉科技');
+  assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, [cloudTech.id]);
+  assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 601 });
 });
 
 test('已有扫描游标会原样传给邮箱组件且不会读取旧邮件正文', async () => {

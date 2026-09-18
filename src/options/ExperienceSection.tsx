@@ -88,7 +88,7 @@ export function ExperienceSection({
                 value={item.company || ''}
                 onChange={e => updateExp(index, 'company', e.target.value)}
                 style={styles.input}
-                placeholder="如 科大讯飞"
+                placeholder="如 示例科技"
               />
             </div>
             <div style={styles.group}>

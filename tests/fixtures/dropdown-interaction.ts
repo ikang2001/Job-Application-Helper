@@ -73,12 +73,12 @@ async function run() {
   const fields = [
     picker('证件类型', FieldType.ID_TYPE, '身份证'),
     picker('手机区号', FieldType.PHONE_COUNTRY_CODE, '中国大陆 +86'),
-    picker('学校', FieldType.SCHOOL, '西北工业大学', true),
+    picker('学校', FieldType.SCHOOL, '示例大学', true),
   ];
   const profile = createEmptyUserProfile();
   profile.personal.idType = '身份证';
   profile.personal.phoneCountryCode = '+86';
-  profile.education = [{ id: 'test', school: '西北工业大学', major: '', degree: '', startDate: '', endDate: '' }];
+  profile.education = [{ id: 'test', school: '示例大学', major: '', degree: '', startDate: '', endDate: '' }];
   const started = performance.now();
   const filler = new FormFiller();
   const accepted = await filler.fillForm(fields, profile);

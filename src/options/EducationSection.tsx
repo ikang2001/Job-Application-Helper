@@ -81,7 +81,7 @@ export function EducationSection({ items, onChange }: Props) {
                 value={item.school || ''}
                 onChange={e => update(index, 'school', e.target.value)}
                 style={styles.input}
-                placeholder="如 北京师范大学"
+                placeholder="如 示例大学"
               />
             </div>
             <div style={styles.group}>

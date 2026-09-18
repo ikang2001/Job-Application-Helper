@@ -380,7 +380,7 @@ test('远程学校搜索给服务端防抖和网络请求保留足够时间', as
     return null;
   };
 
-  await filler.fillCustomSelectField(input as unknown as HTMLInputElement, '西北工业大学');
+  await filler.fillCustomSelectField(input as unknown as HTMLInputElement, '示例大学');
 
   assert.deepEqual(timeouts, [80, 2500]);
 });
@@ -390,7 +390,7 @@ test('远程学校只在输入完整校名并点击真实候选后才算成功',
   const input = new FakeInputElement({ placeholder: '请选择' }).setParent(root);
   const option = new FakeInputElement({
     className: 'ihr_input_selector-menu-item',
-    textContent: '西北工业大学',
+      textContent: '示例大学',
   });
   const writtenValues: string[] = [];
   const timeouts: number[] = [];
@@ -405,11 +405,11 @@ test('远程学校只在输入完整校名并点击真实候选后才算成功',
 
   const accepted = await filler.fillCustomSelectField(
     input as unknown as HTMLInputElement,
-    '西北工业大学',
+    '示例大学',
   );
 
   assert.equal(accepted, true);
-  assert.deepEqual(writtenValues, ['西北工业大学']);
+  assert.deepEqual(writtenValues, ['示例大学']);
   assert.deepEqual(timeouts, [80, 2500]);
   assert.equal(option.clickCount, 1);
 });
@@ -417,19 +417,19 @@ test('远程学校只在输入完整校名并点击真实候选后才算成功',
 test('学校搜索词本身不算已选，候选提交后的关闭态才可确认', () => {
   const root = new FakeInputElement({ className: 'ihr_input_selector' });
   const input = new FakeInputElement({ placeholder: '请选择' }).setParent(root);
-  input.value = '西北工业大学';
+  input.value = '示例大学';
   const filler = new FormFiller() as unknown as TestableFormFiller;
   filler.hasVisibleCustomDropdown = () => false;
   filler.closeCustomDropdown = () => {};
 
   assert.equal(filler.acceptCustomSelection(
     input as unknown as HTMLInputElement,
-    '西北工业大学',
+    '示例大学',
     false,
   ), false);
   assert.equal(filler.acceptCustomSelection(
     input as unknown as HTMLInputElement,
-    '西北工业大学',
+    '示例大学',
     true,
   ), true);
 });

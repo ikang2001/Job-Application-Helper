@@ -58,6 +58,9 @@ job-application-helper.json
 /docs/superpowers/
 /deep-research-report*.md
 /Job-Application-Helper_自用增强改造工程规格.md
+/image*.png
+/screenshot*.png
+/截图*.png
 
 # Editor directories and files
 .vscode/*

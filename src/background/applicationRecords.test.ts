@@ -28,17 +28,17 @@ function installChromeStub() {
     tabs: {
       get: async (tabId: number) => ({
         id: tabId,
-        url: 'https://jobs.bytedance.com/campus',
+        url: 'https://jobs.example.com/campus',
       }),
       sendMessage: async (_tabId: number, message: Message) => {
         sentMessages.push(message);
         return {
           success: true,
           data: {
-            companyName: '字节跳动',
-            sourceSite: 'jobs.bytedance.com',
-            sourceUrl: 'https://jobs.bytedance.com/campus',
-            pageTitle: '字节跳动校园招聘',
+            companyName: '星河软件',
+            sourceSite: 'jobs.example.com',
+            sourceUrl: 'https://jobs.example.com/campus',
+            pageTitle: '星河软件校园招聘',
           },
         };
       },
@@ -57,10 +57,10 @@ function installChromeStub() {
 function buildRecord(overrides: Partial<ApplicationRecord> = {}): ApplicationRecord {
   return {
     id: 'r1',
-    companyName: '字节跳动',
+    companyName: '星河软件',
     jobTitle: '',
-    sourceSite: 'jobs.bytedance.com',
-    sourceUrl: 'https://jobs.bytedance.com/campus',
+    sourceSite: 'jobs.example.com',
+    sourceUrl: 'https://jobs.example.com/campus',
     status: '已投递',
     notes: '',
     appliedAt: '2026-08-07',
@@ -84,7 +84,7 @@ test('创建草稿时返回 duplicate 但不阻止后续创建', async () => {
 
     const second = await handleGetApplicationRecordDraft(createdDraft.data!.draftId);
     assert.equal(second.success, true);
-    assert.equal(second.data?.draft.companyName, '字节跳动');
+    assert.equal(second.data?.draft.companyName, '星河软件');
     assert.equal(second.data?.duplicate?.id, 'r1');
     assert.deepEqual(stub.sentMessages, [{
       type: 'GET_APPLICATION_PAGE_METADATA',
@@ -118,7 +118,7 @@ test('背景层 CRUD 与 CSV handler 可独立运行', async () => {
     assert.equal(exportResponse.success, true);
     assert.match(exportResponse.data?.filename || '', /^application-records-/);
     assert.match(exportResponse.data?.csv || '', /^\uFEFF公司,岗位,链接,状态,投递日期,工作地点\r\n/);
-    assert.match(exportResponse.data?.csv || '', /HYPERLINK\(""https:\/\/jobs\.bytedance\.com\/campus"",""https:\/\/jobs\.bytedance\.com\/campus""\)/);
+    assert.match(exportResponse.data?.csv || '', /HYPERLINK\(""https:\/\/jobs\.example\.com\/campus"",""https:\/\/jobs\.example\.com\/campus""\)/);
     assert.doesNotMatch(exportResponse.data?.csv || '', /schemaVersion|notes|sourceSite/);
 
     const importResponse = await handleImportApplicationRecordsCsv(exportResponse.data!.csv);
@@ -176,14 +176,14 @@ test('CSV 导入会追加记录且保留未参与导入的现有记录', async (
   try {
     const existingRecord = buildRecord({
       id: 'existing-record',
-      companyName: '字节跳动',
-      sourceUrl: 'https://jobs.bytedance.com/existing',
+      companyName: '星河软件',
+      sourceUrl: 'https://jobs.example.com/existing',
     });
     await handleCreateApplicationRecord(existingRecord);
 
     const csv = [
       'companyName,jobTitle,sourceSite,sourceUrl,status,notes,appliedAt,location,createdAt,updatedAt',
-      '腾讯,后台开发,tencent.com,https://careers.tencent.com/example,已投递,,2026-08-09,深圳,2026-08-09T10:00:00.000Z,2026-08-09T10:00:00.000Z',
+      '云帆通信,测试岗位B,cloud.example.com,https://jobs.example.com/example,已投递,,2026-08-09,示例城市B,2026-08-09T10:00:00.000Z,2026-08-09T10:00:00.000Z',
     ].join('\n');
 
     const importResponse = await handleImportApplicationRecordsCsv(csv);
@@ -197,8 +197,8 @@ test('CSV 导入会追加记录且保留未参与导入的现有记录', async (
       records.map(record => record.id),
       ['existing-record', records[1]!.id],
     );
-    assert.equal(records[0]?.companyName, '字节跳动');
-    assert.equal(records[1]?.companyName, '腾讯');
+    assert.equal(records[0]?.companyName, '星河软件');
+    assert.equal(records[1]?.companyName, '云帆通信');
   } finally {
     stub.restore();
   }
@@ -210,7 +210,7 @@ test('非法 CSV 表头导入返回失败而不是 success + 0', async () => {
   try {
     const invalidCsv = [
       'companyName,jobTitle,sourceUrl,status',
-      '字节跳动,前端开发,https://jobs.bytedance.com/example,已投递',
+      '星河软件,测试岗位A,https://jobs.example.com/example,已投递',
     ].join('\n');
 
     const response = await handleImportApplicationRecordsCsv(invalidCsv);
@@ -228,14 +228,14 @@ test('CSV 导入命中已有重复时跳过，避免 V1 重复导入无限追加
   try {
     const existingRecord = buildRecord({
       id: 'existing-record',
-      companyName: '字节跳动',
-      sourceUrl: 'https://jobs.bytedance.com/campus',
+      companyName: '星河软件',
+      sourceUrl: 'https://jobs.example.com/campus',
     });
     await handleCreateApplicationRecord(existingRecord);
 
     const csv = [
       'companyName,jobTitle,sourceSite,sourceUrl,status,notes,appliedAt,location,createdAt,updatedAt',
-      '字节跳动,,jobs.bytedance.com,https://jobs.bytedance.com/campus,已投递,,2026-08-07,,2026-08-07T11:00:00.000Z,2026-08-07T11:00:00.000Z',
+      '星河软件,,jobs.example.com,https://jobs.example.com/campus,已投递,,2026-08-07,,2026-08-07T11:00:00.000Z,2026-08-07T11:00:00.000Z',
     ].join('\n');
 
     const importResponse = await handleImportApplicationRecordsCsv(csv);

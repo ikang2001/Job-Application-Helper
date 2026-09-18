@@ -39,7 +39,7 @@ try {
     {name:'学校', placeholder:'请输入学校名称搜索', searchFn: async ({params}) => {
       traces.push({searchParams:params});
       await new Promise(resolve=>setTimeout(resolve,500));
-      schoolOptions.value=params === '西北工业大学' ? [{key:'npu',label:'西北工业大学'}] : [];
+      schoolOptions.value=params === '示例大学' ? [{key:'demo',label:'示例大学'}] : [];
       return {code:'0',data: schoolOptions.value,total:schoolOptions.value.length};
     }},
   ];
@@ -56,7 +56,7 @@ try {
     await nextTick();
     traces.length=0;
     const profile=createEmptyUserProfile(); profile.personal.idType='身份证';profile.personal.phoneCountryCode='+86';
-    profile.education=[{id:'test',school:'西北工业大学',major:'',degree:'',startDate:'',endDate:''}];
+    profile.education=[{id:'test',school:'示例大学',major:'',degree:'',startDate:'',endDate:''}];
     const types=[FieldType.ID_TYPE,FieldType.PHONE_COUNTRY_CODE,FieldType.SCHOOL];
     const fields=Array.from(document.querySelectorAll('.case input')).map((element,i)=>({element,fieldType:types[i],confidence:1}));
     const start=performance.now();const filler=new FormFiller();

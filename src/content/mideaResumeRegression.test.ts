@@ -384,7 +384,7 @@ test('省直管市会先展开网站结构节点，再选择真实城市叶子',
   assert.equal(result, target);
 });
 
-test('美的身份证组合项把前置字典下拉和号码输入分成两个字段', { concurrency: false }, () => {
+test('目标站点身份证组合项把前置字典下拉和号码输入分成两个字段', { concurrency: false }, () => {
   const label = node({ tagName: 'LABEL', textContent: '证件号码' });
   // iHR 的最近表单项实际带 `...person_info-phone`，外层列再带 `...idNumber`；
   // 组合识别必须以最近表单项中的两个控件为准。
@@ -882,7 +882,7 @@ test('国籍首次失败时会先重试，并在籍贯字段出现后继续补�
   ]);
 });
 
-test('美的两条教育行按 multiple_form-edu 行号分别写入学习方式', { concurrency: false }, async () => {
+test('目标站点两条教育行按 multiple_form-edu 行号分别写入学习方式', { concurrency: false }, async () => {
   const row = (index: number) => ({
     getAttribute(name: string): string | null {
       return name === 'class'
@@ -905,11 +905,11 @@ test('美的两条教育行按 multiple_form-edu 行号分别写入学习方式'
   const profile = createEmptyUserProfile();
   profile.education = [
     {
-      id: 'edu-0', school: '西北工业大学', major: '机器人', degree: '硕士',
+      id: 'edu-0', school: '示例大学', major: '机器人', degree: '硕士',
       startDate: '', endDate: '', educationType: '统招全日制',
     },
     {
-      id: 'edu-1', school: '武汉轻工大学', major: '自动化', degree: '本科',
+      id: 'edu-1', school: '示例大学', major: '自动化', degree: '本科',
       startDate: '', endDate: '', educationType: '全日制',
     },
   ];
@@ -968,11 +968,11 @@ test('学校下拉重绘后新增的第一条学习方式不会被第二条教�
   const profile = createEmptyUserProfile();
   profile.education = [
     {
-      id: 'edu-0', school: '西北工业大学', major: '机器人', degree: '硕士',
+      id: 'edu-0', school: '示例大学', major: '机器人', degree: '硕士',
       startDate: '', endDate: '', educationType: '统招全日制',
     },
     {
-      id: 'edu-1', school: '武汉轻工大学', major: '自动化', degree: '本科',
+      id: 'edu-1', school: '示例大学', major: '自动化', degree: '本科',
       startDate: '', endDate: '', educationType: '全日制',
     },
   ];
@@ -1047,11 +1047,11 @@ test('学校下拉异步重绘到 180ms 时仍会等到首条学习方式出现'
   const profile = createEmptyUserProfile();
   profile.education = [
     {
-      id: 'edu-0', school: '西北工业大学', major: '机器人', degree: '硕士',
+      id: 'edu-0', school: '示例大学', major: '机器人', degree: '硕士',
       startDate: '', endDate: '', educationType: '统招全日制',
     },
     {
-      id: 'edu-1', school: '武汉轻工大学', major: '自动化', degree: '本科',
+      id: 'edu-1', school: '示例大学', major: '自动化', degree: '本科',
       startDate: '', endDate: '', educationType: '全日制',
     },
   ];
@@ -1109,7 +1109,7 @@ test('首条学习方式旧节点在 180ms 后被替换时会重新绑定新下�
   ];
   const profile = createEmptyUserProfile();
   profile.education = [{
-    id: 'edu-0', school: '西北工业大学', major: '机器人', degree: '硕士',
+      id: 'edu-0', school: '示例大学', major: '机器人', degree: '硕士',
     startDate: '', endDate: '', educationType: '统招全日制',
   }];
   const calls: string[] = [];
@@ -1171,7 +1171,7 @@ test('已处理过的依赖字段被替换时，新节点会追加到队列再�
   ];
   const profile = createEmptyUserProfile();
   profile.education = [{
-    id: 'edu-0', school: '西北工业大学', major: '机器人', degree: '硕士',
+    id: 'edu-0', school: '示例大学', major: '机器人', degree: '硕士',
     startDate: '', endDate: '', educationType: '统招全日制',
   }];
   const calls: string[] = [];

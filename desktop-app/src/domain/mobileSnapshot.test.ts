@@ -39,7 +39,7 @@ test('手机快照只包含只读求职信息，不夹带简历、邮箱内容�
     startsAt: '2026-09-12T19:00',
     endsAt: '',
     mode: '线下',
-    location: '长安校区',
+    location: '中心校区',
     organizer: '就业中心',
     registrationDeadline: '',
     eventUrl: 'https://career.example.com/fair',

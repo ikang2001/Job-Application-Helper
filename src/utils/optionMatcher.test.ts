@@ -38,9 +38,9 @@ test('兼容学历、性别和带地区文字的国家区号选项', () => {
 });
 
 test('学校只选择完整名称，不把同名附属学院当作该大学', () => {
-  assert.equal(findBestMatchingOptionIndex('西北工业大学', ['西北工业大学明德学院', '西北工业大学']), 1);
-  assert.equal(findBestMatchingOptionIndex('西北工业大学', ['西北工业大学明德学院']), -1);
-  assert.equal(areEquivalentOptionValues('西北工业大学', '西 北 工 业 大 学'), true);
+  assert.equal(findBestMatchingOptionIndex('示例大学', ['示例大学明德学院', '示例大学']), 1);
+  assert.equal(findBestMatchingOptionIndex('示例大学', ['示例大学明德学院']), -1);
+  assert.equal(areEquivalentOptionValues('示例大学', '示 例 大 学'), true);
 });
 
 test('兼容国家和地区选项的常见官方名称', () => {

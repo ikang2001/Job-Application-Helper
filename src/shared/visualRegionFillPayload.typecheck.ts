@@ -5,7 +5,7 @@ import type {
 
 const sharedFields = {
   requestId: 'req-1',
-  domain: 'jobs.bytedance.com',
+  domain: 'jobs.example.com',
   controls: [],
   region: {
     x: 0,

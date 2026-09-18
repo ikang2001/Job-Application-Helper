@@ -113,7 +113,7 @@ test('桌面端 JSON 备份包含招聘会且可无损重新导入', () => {
     startsAt: '2026-09-12T09:00',
     endsAt: '2026-09-12T16:00',
     mode: '线下',
-    location: '长安校区',
+    location: '中心校区',
     organizer: '就业中心',
     registrationDeadline: '2026-09-11T18:00',
     eventUrl: 'https://career.example.com/fair',

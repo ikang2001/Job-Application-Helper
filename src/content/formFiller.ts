@@ -444,7 +444,7 @@ export class FormFiller {
 
         this.lastSelectionFailure = undefined;
         // 身份证号不能先走普通输入链路：普通链路会立即触发 blur，
-        // 美的等 Vue 表单会在该时机清空尚未提交的证件号。
+        // 部分 Vue 表单会在该时机清空尚未提交的证件号。
         const canUseIdentityInputPath = fieldType === FieldType.ID_CARD
           && typeof HTMLInputElement !== 'undefined'
           && field.element instanceof HTMLInputElement;
