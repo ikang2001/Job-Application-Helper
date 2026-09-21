@@ -25,6 +25,7 @@ const FIRST_SCAN_DAYS = 30;
 const PAGE_LIMIT = 40;
 const MAX_PAGES_PER_SCAN = 4;
 const MAX_STORED_REVIEWS = 500;
+const TRANSIENT_SCAN_RETRIES = 1;
 const SCHEDULED_REVIEW_STAGES = new Set<DesktopMailReviewStage>([
   'writtenTest', 'assessment', 'ai', 'first', 'second', 'third', 'hr',
 ]);
@@ -67,14 +68,13 @@ export class DesktopMailInboxService {
       };
     }
 
-    const cursors = { ...current.cursors };
+    const cursors = current.status === 'error' ? {} : { ...current.cursors };
     const discovered: DesktopMailReview[] = [];
     const accountStates: DesktopMailAccountState[] = [];
     let successfulAccounts = 0;
 
     for (const account of accounts) {
       try {
-        await this.client.testConnection(account.id);
         await this.scanAccount(account, data, current, cursors, discovered);
         successfulAccounts += 1;
         accountStates.push(accountState(account, 'connected'));
@@ -115,7 +115,7 @@ export class DesktopMailInboxService {
     let cursor = cursors[account.id];
     const since = cursor ? undefined : new Date(Date.now() - FIRST_SCAN_DAYS * 86_400_000).toISOString();
     for (let pageIndex = 0; pageIndex < MAX_PAGES_PER_SCAN; pageIndex += 1) {
-      const page = await this.client.listMessages(account.id, {
+      const page = await this.listMessages(account.id, {
         cursor,
         since,
         limit: PAGE_LIMIT,
@@ -135,6 +135,20 @@ export class DesktopMailInboxService {
       cursors[account.id] = cursor;
       if (!page.hasMore) break;
     }
+  }
+
+  private async listMessages(
+    accountId: string,
+    options: Parameters<DesktopNativeMailPort['listMessages']>[1],
+  ) {
+    for (let attempt = 0; attempt <= TRANSIENT_SCAN_RETRIES; attempt += 1) {
+      try {
+        return await this.client.listMessages(accountId, options);
+      } catch (error) {
+        if (attempt === TRANSIENT_SCAN_RETRIES || !isTransientConnectionError(error)) throw error;
+      }
+    }
+    throw new Error('邮箱扫描重试失败');
   }
 }
 
@@ -200,13 +214,13 @@ function buildReview(
 
 function hasScheduledRecruitmentArrangement(subject: string, body: string): boolean {
   const normalizedSubject = compact(subject);
-  const scheduleTerm = /测评|笔试|面试|assessment|coding\s*(?:test|challenge)|interview/i;
+  const scheduleTerm = /考试|测评|笔试|面试|assessment|coding\s*(?:test|challenge)|interview/i;
   const acknowledgement = /(?:感谢|已收到|成功).{0,16}(?:投递|申请|简历)|(?:投递|申请).{0,16}(?:成功|确认)/i;
   if (acknowledgement.test(normalizedSubject) && !scheduleTerm.test(normalizedSubject)) return false;
 
   const content = compact(`${subject}\n${body}`);
-  return /(?:请|邀请|邀约|安排|参加|完成|开始|预约|进入).{0,40}(?:测评|笔试|面试)/i.test(content)
-    || /(?:测评|笔试|面试).{0,40}(?:邀请|邀约|通知|安排|时间|链接|地址|截止|参加|完成|开始|预约)/i.test(content)
+  return /(?:请|邀请|邀约|安排|参加|完成|开始|预约|进入).{0,40}(?:考试|测评|笔试|面试)/i.test(content)
+    || /(?:考试|测评|笔试|面试).{0,40}(?:邀请|邀约|通知|安排|时间|链接|地址|截止|参加|完成|开始|预约)/i.test(content)
     || /\b(?:please|invited?|schedule[ds]?|complete|attend|start|book)\b.{0,80}\b(?:assessment|coding\s*(?:test|challenge)|interview)\b/i.test(content)
     || /\b(?:assessment|coding\s*(?:test|challenge)|interview)\b.{0,80}\b(?:invitation|invite|schedule|time|link|deadline|complete|attend|start|book)\b/i.test(content);
 }
@@ -317,6 +331,12 @@ function extractActionUrl(text: string): string | undefined {
 
 function compact(value: string): string {
   return value.normalize('NFKC').replace(/\s+/g, ' ').trim();
+}
+
+function isTransientConnectionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /(?:连接超时|connection.*(?:required time|timed out|timeout)|socket.*(?:closed|hang up)|ECONNRESET)/i
+    .test(message);
 }
 
 function emptyInbox(): StoredDesktopMailInbox {

@@ -36,7 +36,7 @@ export function extractRecruitmentData(email: NormalizedEmail): ExtractedRecruit
     /(?:application|candidate)\s*(?:id|number|no\.?|#)\s*[:：#-]?\s*([A-Z0-9][A-Z0-9._/-]{1,80})/i,
     /(?:申请|应聘)(?:编号|ID)\s*[:：#-]?\s*([A-Z0-9][A-Z0-9._/-]{1,80})/i,
   ]);
-  const scheduledAt = extractLabeledDate(text, /笔试|考试(?:开始)?时间|测评(?:开始)?时间/i);
+  const scheduledAt = extractLabeledDate(text, /笔试|考试(?:开始)?时间|测评(?:开始)?时间|开始时间/i);
   const interviewAt = extractLabeledDate(text, /interview|面试|面谈/i);
   const deadlineAt = extractDeadline(text, email.receivedAt);
   const meetingUrl = extractMeetingUrl(text);

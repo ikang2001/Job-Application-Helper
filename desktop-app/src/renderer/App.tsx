@@ -32,6 +32,7 @@ import {
 import { upcomingCareerFairCount } from '../domain/careerFairs.ts';
 import {
   setRecruitmentScheduleCompleted,
+  statusAfterScheduleCompletion,
   upcomingRecruitmentSchedules,
   type UpcomingRecruitmentSchedule,
 } from './recruitmentSchedule.ts';
@@ -365,8 +366,10 @@ export function App() {
       return;
     }
     setBusy('schedule-completion');
+    const nextStatus = statusAfterScheduleCompletion(record.status, completed);
     const result = await window.desktopApi.saveRecord({
       ...desktopRecordInput(record),
+      status: nextStatus,
       recruitmentSchedule: setRecruitmentScheduleCompleted(
         record.recruitmentSchedule,
         item.kind,
@@ -378,7 +381,7 @@ export function App() {
       setNotice({
         type: 'success',
         text: completed
-          ? `${item.companyName} · ${item.label}已完成，桌面和手机后续提醒已取消`
+          ? `${item.companyName} · ${item.label}已完成${nextStatus === '等待中' ? '，岗位状态已更新为“等待中”' : ''}，桌面和手机后续提醒已取消`
           : `${item.companyName} · ${item.label}已恢复为待处理`,
       });
     } else showError(result.error, `${completed ? '标记' : '撤销'}完成失败`);

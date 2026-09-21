@@ -51,7 +51,7 @@ async function dispatch(
 ): Promise<unknown> {
   switch (request.type) {
     case 'PING':
-      return { host: 'com.job_application_helper.mail', version: '1.1.0' };
+      return { host: 'com.job_application_helper.mail', version: '1.1.1' };
     case 'MERGE_APPLICATION_RECORDS': {
       await dependencies.localRecords.merge({
         writer: request.writer,

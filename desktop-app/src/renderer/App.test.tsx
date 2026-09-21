@@ -228,8 +228,11 @@ test('近期安排按独立入口展示下一项及开始截止语义', async ()
       await Promise.resolve();
     });
     assert.ok(lastSavedInput?.recruitmentSchedule?.assessment?.completedAt);
+    assert.equal(lastSavedInput?.status, '等待中');
+    assert.equal(currentRecords[0]?.status, '等待中');
     assert.match(text(panel), /待处理\s*0/);
     assert.match(text(panel), /已完成\s*1/);
+    assert.match(text(renderer.root), /岗位状态已更新为“等待中”/);
     await act(async () => button(renderer, '已完成 1').props.onClick());
     assert.match(text(panel), /已经停止提醒的安排/);
     assert.match(text(panel), /测评截止 · 已完成/);
@@ -678,7 +681,10 @@ test('左侧已投递汇总保留进入面试的记录并自动使用求职阶�
     assert.match(text(renderer.root), /已投递汇总/);
     assert.match(text(renderer.root), /甲公司/);
     assert.match(text(renderer.root), /乙公司/);
-    assert.doesNotMatch(text(renderer.root.findByProps({ className: 'records-table' })), /丙公司/);
+    const table = renderer.root.findByProps({ className: 'records-table' });
+    assert.doesNotMatch(text(table), /丙公司/);
+    assert.match(text(table), /投递链接/);
+    assert.doesNotMatch(text(table), /来源/);
   } finally {
     await act(async () => renderer.unmount());
     globalThis.window = originalWindow;

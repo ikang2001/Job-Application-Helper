@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { APPLICATION_RECORD_STATUSES } from '../../../src/shared/applicationRecords.ts';
 import type { ApplicationRecord, ApplicationRecordStatus } from '../../../src/shared/types.ts';
 import { ExternalIcon } from './Icons.tsx';
@@ -33,6 +33,31 @@ export function RecordsTable({
   onSaveNotes,
   onEditSchedule,
 }: RecordsTableProps) {
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const floatingScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+
+  useEffect(() => {
+    const tableScroll = tableScrollRef.current;
+    if (!tableScroll || typeof window === 'undefined') return undefined;
+    const updateScrollWidth = () => setTableScrollWidth(
+      tableScroll.scrollWidth > tableScroll.clientWidth ? tableScroll.scrollWidth : 0,
+    );
+    updateScrollWidth();
+    window.addEventListener('resize', updateScrollWidth);
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(updateScrollWidth);
+    observer?.observe(tableScroll);
+    return () => {
+      window.removeEventListener('resize', updateScrollWidth);
+      observer?.disconnect();
+    };
+  }, [records.length]);
+
+  const syncHorizontalScroll = (source: HTMLDivElement, target: HTMLDivElement | null) => {
+    if (!target || target.scrollLeft === source.scrollLeft) return;
+    target.scrollLeft = source.scrollLeft;
+  };
+
   if (records.length === 0) {
     return (
       <div className="records-empty">
@@ -45,7 +70,22 @@ export function RecordsTable({
 
   return (
     <div className="records-table-shell">
-      <table className="records-table">
+      {tableScrollWidth > 0 && (
+        <div
+          ref={floatingScrollRef}
+          className="records-table-scrollbar"
+          aria-label="投递记录横向滚动条"
+          onScroll={event => syncHorizontalScroll(event.currentTarget, tableScrollRef.current)}
+        >
+          <div style={{ width: tableScrollWidth }} />
+        </div>
+      )}
+      <div
+        ref={tableScrollRef}
+        className="records-table-scroll"
+        onScroll={event => syncHorizontalScroll(event.currentTarget, floatingScrollRef.current)}
+      >
+        <table className="records-table">
         <thead>
           <tr>
             <th>公司与岗位</th>
@@ -53,7 +93,7 @@ export function RecordsTable({
             <th>安排 / 备注</th>
             <th>投递日期</th>
             <th>地点</th>
-            <th>来源</th>
+            <th>投递链接</th>
             <th>最近更新</th>
           </tr>
         </thead>
@@ -140,7 +180,8 @@ export function RecordsTable({
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

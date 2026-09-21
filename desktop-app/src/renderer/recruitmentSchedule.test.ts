@@ -6,6 +6,7 @@ import {
   completedRecruitmentSchedules,
   filterRecruitmentSchedules,
   setRecruitmentScheduleCompleted,
+  statusAfterScheduleCompletion,
   upcomingRecruitmentSchedules,
 } from './recruitmentSchedule.ts';
 
@@ -77,6 +78,14 @@ test('标记完成后从待处理中移除并可撤销', () => {
   assert.equal(completedRecruitmentSchedules([current])[0].label, '测评');
   current.recruitmentSchedule = setRecruitmentScheduleCompleted(current.recruitmentSchedule, 'assessment', undefined);
   assert.equal(upcomingRecruitmentSchedules([current], Date.parse('2026-09-10T10:00')).length, 1);
+});
+
+test('标记安排完成后自动进入等待中且不覆盖结束状态', () => {
+  assert.equal(statusAfterScheduleCompletion('笔试/测评', true), '等待中');
+  assert.equal(statusAfterScheduleCompletion('面试中', true), '等待中');
+  assert.equal(statusAfterScheduleCompletion('offer', true), 'offer');
+  assert.equal(statusAfterScheduleCompletion('主动放弃', true), '主动放弃');
+  assert.equal(statusAfterScheduleCompletion('面试中', false), '面试中');
 });
 
 test('近期安排可按测评笔试、AI 面试和正式面试分类且不改变时间顺序', () => {

@@ -135,6 +135,7 @@ export function MailAccountsSection({
     setNotice({ type: 'info', text: '正在读取新邮件，请保持浏览器打开…' });
     const response = await MessageService.sendMessage<Array<{
       inspectedHeaders: number;
+      fetchedMessages: number;
       autoUpdated: number;
       pendingReviews: number;
       error?: string;
@@ -144,12 +145,13 @@ export function MailAccountsSection({
     } else {
       const results = response.data ?? [];
       const inspected = results.reduce((sum, result) => sum + result.inspectedHeaders, 0);
+      const fetched = results.reduce((sum, result) => sum + result.fetchedMessages, 0);
       const updated = results.reduce((sum, result) => sum + result.autoUpdated, 0);
       const pending = results.reduce((sum, result) => sum + result.pendingReviews, 0);
       const failures = results.filter(result => result.error).length;
       setNotice({
         type: failures ? 'error' : 'success',
-        text: `已检查 ${inspected} 封候选邮件，自动更新 ${updated} 条，待确认 ${pending} 条${failures ? `，${failures} 个账号失败` : ''}。`,
+        text: `已扫描 ${inspected} 封邮件，其中读取 ${fetched} 封招聘候选；自动更新 ${updated} 条，待确认 ${pending} 条${failures ? `，${failures} 个账号失败` : ''}。`,
       });
       await load();
     }

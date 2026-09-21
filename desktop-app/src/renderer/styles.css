@@ -936,12 +936,34 @@ button:disabled {
 }
 
 .records-table-shell {
-  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(251, 252, 250, 0.94);
   box-shadow: 0 12px 30px rgba(42, 70, 69, 0.05);
 }
+
+.records-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.records-table-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+.records-table-scrollbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 17px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid var(--line);
+  background: rgba(239, 247, 244, 0.98);
+  scrollbar-color: #000000 transparent;
+  scrollbar-width: thin;
+}
+
+.records-table-scrollbar > div { height: 1px; }
 
 .records-table {
   width: 100%;

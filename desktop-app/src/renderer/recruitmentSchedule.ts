@@ -1,5 +1,6 @@
 import type {
   ApplicationRecord,
+  ApplicationRecordStatus,
   InterviewRound,
   RecruitmentSchedule,
   RecruitmentScheduleEntry,
@@ -26,6 +27,9 @@ export interface UpcomingRecruitmentSchedule {
 }
 
 const TERMINAL_STATUSES = new Set<ApplicationRecord['status']>(['主动放弃', '职位关闭']);
+const STATUS_PRESERVED_AFTER_COMPLETION = new Set<ApplicationRecordStatus>([
+  'offer', '主动放弃', '职位关闭', '终止',
+]);
 
 export const RECRUITMENT_SCHEDULE_ROWS: readonly RecruitmentScheduleRow[] = [
   { group: 'stage', kind: 'writtenTest', label: '笔试' },
@@ -139,6 +143,14 @@ export function setRecruitmentScheduleCompleted(
 ): RecruitmentSchedule {
   const row = RECRUITMENT_SCHEDULE_ROWS.find(item => item.kind === kind);
   return row ? updateScheduleEntry(schedule, row, 'completedAt', completedAt) : { ...schedule };
+}
+
+export function statusAfterScheduleCompletion(
+  currentStatus: ApplicationRecordStatus,
+  completed: boolean,
+): ApplicationRecordStatus {
+  if (!completed || STATUS_PRESERVED_AFTER_COMPLETION.has(currentStatus)) return currentStatus;
+  return '等待中';
 }
 
 function recruitmentScheduleItems(

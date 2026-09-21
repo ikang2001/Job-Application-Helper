@@ -35,6 +35,8 @@ export const PROCESSED_MAIL_SOURCES_STORAGE_KEY = 'processedMailSources';
 const MAX_PENDING_REVIEWS = 500;
 const MAX_PROCESSED_SOURCES = 5000;
 const MAX_SCAN_PAGES = 5;
+const IMAP_SCAN_REVISION = 1;
+const INITIAL_SCAN_DAYS = 30;
 
 interface ProcessedMailSource {
   sourceKey: string;
@@ -266,7 +268,13 @@ async function syncMailAccount(
   const tombstones = await readApplicationEventTombstones();
   const processed = await readProcessedSources(dependencies);
   const existingKeys = records.flatMap(record => record.events.map(event => event.sourceKey));
-  let cursor = account.cursor;
+  const fullScanSince = new Date(
+    dependencies.now().getTime() - INITIAL_SCAN_DAYS * 86_400_000,
+  ).toISOString();
+  const needsImapBackfill = account.provider === 'imap'
+    && (account.imapScanRevision ?? 0) < IMAP_SCAN_REVISION;
+  let cursor = needsImapBackfill ? undefined : account.cursor;
+  let since = needsImapBackfill ? fullScanSince : account.lastSyncAt ?? fullScanSince;
   let inspectedHeaders = 0;
   let fetchedMessages = 0;
   let autoUpdated = 0;
@@ -282,18 +290,14 @@ async function syncMailAccount(
       result = await scanMailPage(provider, records, {
         limit: 50,
         cursor,
-        since: account.lastSyncAt ?? new Date(dependencies.now().getTime() - 30 * 86_400_000).toISOString(),
+        since,
         existingSourceKeys: [...existingKeys, ...processed, ...newProcessed],
         suppressedSourceKeys: tombstones,
       });
     } catch (error) {
-      if (
-        error instanceof MailProviderError
-        && error.code === 'CURSOR_EXPIRED'
-        && cursor
-        && !cursorFallbackUsed
-      ) {
+      if (isRecoverableCursorError(error, cursor, cursorFallbackUsed)) {
         cursor = undefined;
+        if (isInvalidImapCursor(error)) since = fullScanSince;
         cursorFallbackUsed = true;
         pageIndex -= 1;
         continue;
@@ -340,6 +344,7 @@ async function syncMailAccount(
     lastSyncAt: dependencies.now().toISOString(),
     lastError: undefined,
     connectionState: 'connected',
+    imapScanRevision: account.provider === 'imap' ? IMAP_SCAN_REVISION : account.imapScanRevision,
     updatedAt: dependencies.now().toISOString(),
   });
   return {
@@ -543,6 +548,22 @@ function createId(): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '邮箱操作失败';
+}
+
+function isRecoverableCursorError(
+  error: unknown,
+  cursor: string | undefined,
+  fallbackUsed: boolean,
+): error is MailProviderError {
+  if (!(error instanceof MailProviderError) || !cursor || fallbackUsed) return false;
+  if (error.code === 'CURSOR_EXPIRED') return true;
+  return isInvalidImapCursor(error);
+}
+
+function isInvalidImapCursor(error: MailProviderError): boolean {
+  return error.provider === 'imap'
+    && error.code === 'INVALID_REQUEST'
+    && /^IMAP cursor\b/i.test(error.message);
 }
 
 function failure<T>(error: unknown, fallback: string): MessageResponse<T> {
