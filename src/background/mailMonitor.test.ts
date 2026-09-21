@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeApplicationRecord } from '../shared/applicationRecords.ts';
 import type { MailAccount, OAuthTokenProvider } from '../services/mail/accounts.ts';
-import type { MailProvider } from '../services/mail/provider.ts';
+import { MailProviderError, type MailProvider } from '../services/mail/provider.ts';
 import type { MailHeader, NormalizedEmail } from '../services/mail/types.ts';
 import {
   MAIL_ACCOUNTS_STORAGE_KEY,
@@ -150,6 +150,93 @@ test('单账号 Provider 失败被隔离为结果错误', async () => {
     const result = await handleSyncMail(undefined, harness.dependencies);
     assert.equal(result.success, true);
     assert.match(result.data?.[0]?.error ?? '', /provider unavailable/);
+  } finally {
+    chromeStorage.restore();
+  }
+});
+
+test('IMAP cursor 无效时自动丢弃旧游标并重新扫描', async () => {
+  const chromeStorage = installChromeStorage([baseRecord()]);
+  const account: MailAccount = {
+    id: 'imap-1', provider: 'imap', emailAddress: 'candidate@example.com',
+    enabled: true, connectionState: 'connected', cursor: 'imap:legacy-cursor',
+    imapScanRevision: 1, lastSyncAt: '2026-09-17T08:00:00.000Z',
+    imap: { provider: '163', host: 'imap.163.com', port: 993, secure: true, username: 'candidate@example.com' },
+  };
+  const state: Record<string, unknown> = { [MAIL_ACCOUNTS_STORAGE_KEY]: [account] };
+  const calls: Array<{ cursor?: string; since?: string }> = [];
+  const provider: MailProvider = {
+    kind: 'imap', accountId: account.id,
+    testConnection: async () => ({ connected: true, accountId: account.id }),
+    listHeaders: async options => {
+      calls.push({ cursor: options.cursor, since: options.since });
+      if (calls.length === 1) {
+        throw new MailProviderError({
+          code: 'INVALID_REQUEST', provider: 'imap', message: 'IMAP cursor 无效',
+        });
+      }
+      return { items: [], syncCursor: 'imap:%7B%22uidValidity%22%3A%227%22%2C%22lastUid%22%3A12%7D' };
+    },
+    getMessage: async () => { throw new Error('not expected'); },
+  };
+  const dependencies: MailMonitorDependencies = {
+    read: async key => state[key],
+    write: async values => { Object.assign(state, structuredClone(values)); },
+    tokenProvider: { getAccessToken: async () => ({ accessToken: 'test' }) },
+    createProvider: () => provider,
+    now: () => new Date('2026-09-18T08:00:00.000Z'),
+  };
+  try {
+    const result = await handleSyncMail(undefined, dependencies);
+    assert.equal(result.success, true);
+    assert.equal(result.data?.[0]?.error, undefined);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0]?.cursor, 'imap:legacy-cursor');
+    assert.equal(calls[0]?.since, '2026-09-17T08:00:00.000Z');
+    assert.equal(calls[1]?.cursor, undefined);
+    assert.equal(calls[1]?.since, '2026-08-19T08:00:00.000Z');
+    const accounts = state[MAIL_ACCOUNTS_STORAGE_KEY] as MailAccount[];
+    assert.equal(accounts[0]?.cursor, 'imap:%7B%22uidValidity%22%3A%227%22%2C%22lastUid%22%3A12%7D');
+  } finally {
+    chromeStorage.restore();
+  }
+});
+
+test('旧版 IMAP 账号升级后仅执行一次最近三十天回扫', async () => {
+  const chromeStorage = installChromeStorage([baseRecord()]);
+  const account: MailAccount = {
+    id: 'imap-1', provider: 'imap', emailAddress: 'candidate@example.com',
+    enabled: true, connectionState: 'connected', cursor: 'imap:old-checkpoint',
+    lastSyncAt: '2026-09-17T08:00:00.000Z',
+    imap: { provider: '163', host: 'imap.163.com', port: 993, secure: true, username: 'candidate@example.com' },
+  };
+  const state: Record<string, unknown> = { [MAIL_ACCOUNTS_STORAGE_KEY]: [account] };
+  const calls: Array<{ cursor?: string; since?: string }> = [];
+  const provider: MailProvider = {
+    kind: 'imap', accountId: account.id,
+    testConnection: async () => ({ connected: true, accountId: account.id }),
+    listHeaders: async options => {
+      calls.push({ cursor: options.cursor, since: options.since });
+      return { items: [], syncCursor: 'imap:new-checkpoint' };
+    },
+    getMessage: async () => { throw new Error('not expected'); },
+  };
+  const dependencies: MailMonitorDependencies = {
+    read: async key => state[key],
+    write: async values => { Object.assign(state, structuredClone(values)); },
+    tokenProvider: { getAccessToken: async () => ({ accessToken: 'test' }) },
+    createProvider: () => provider,
+    now: () => new Date('2026-09-18T08:00:00.000Z'),
+  };
+  try {
+    await handleSyncMail(undefined, dependencies);
+    await handleSyncMail(undefined, dependencies);
+
+    assert.equal(calls[0]?.cursor, undefined);
+    assert.equal(calls[0]?.since, '2026-08-19T08:00:00.000Z');
+    assert.equal(calls[1]?.cursor, 'imap:new-checkpoint');
+    const accounts = state[MAIL_ACCOUNTS_STORAGE_KEY] as MailAccount[];
+    assert.equal(accounts[0]?.imapScanRevision, 1);
   } finally {
     chromeStorage.restore();
   }

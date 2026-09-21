@@ -154,6 +154,24 @@ test('classifier recognizes plain Chinese assessment notices and AI interview in
   assert.equal(aiInterview.category, RECRUITMENT_MAIL_CATEGORY.INTERVIEW_INVITE);
 });
 
+test('classifier recognizes fixed-time online exam invitations as written tests', () => {
+  const email: NormalizedEmail = {
+    ...interviewEmail,
+    id: 'online-exam-cn',
+    from: { name: '示例科技', address: 'exam@example.com' },
+    subject: '【示例科技】在线考试邀请函！',
+    text: [
+      '非常高兴邀请您参加示例科技在线考试，希望您能按时完成。',
+      '试卷名称：示例科技2027届校招笔试-示例方向',
+      '开始时间（北京时间）：2026-09-19 19:00',
+    ].join('\n'),
+  };
+
+  const classification = classifyRecruitmentEmail(email);
+  assert.equal(classification.category, RECRUITMENT_MAIL_CATEGORY.ASSESSMENT_INVITE);
+  assert.equal(extractRecruitmentData(email).scheduledAt, '2026-09-19T19:00:00');
+});
+
 test('matcher keeps classification, match, and decision confidence separate', () => {
   const extracted = extractRecruitmentData(interviewEmail);
   const match = matchEmailToApplication(interviewEmail, extracted, [{

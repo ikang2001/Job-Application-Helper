@@ -89,6 +89,77 @@ test('已删除邮件形成 UID 空洞时直接搜索 cursor 之后实际存在�
   assert.equal(result.hasMore, false);
 });
 
+test('已有 cursor 时重叠复查最近 UID，避免旧规则漏掉的邮件永久跳过', async () => {
+  let searchedUid = '';
+  const client = fakeClient({
+    search: async query => {
+      searchedUid = query.uid ?? '';
+      return [151, 200, 201];
+    },
+    fetchAll: async range => (Array.isArray(range) ? range : []).map(uid => ({
+      uid,
+      envelope: {
+        subject: `message-${uid}`,
+        messageId: `<${uid}@example.com>`,
+        date: new Date('2026-09-18T08:00:00.000Z'),
+        from: [{ name: '招聘团队', address: 'hr@example.com' }],
+        to: [{ address: 'candidate@example.com' }],
+      },
+      internalDate: new Date('2026-09-18T08:00:00.000Z'),
+      size: 100,
+    })),
+  });
+  const service = new ImapMailService(() => client);
+  const result = await service.listMessages(account, 'secret', {
+    cursor: { uidValidity: '7', lastUid: 200 },
+    limit: 10,
+  });
+
+  assert.equal(searchedUid, '151:*');
+  assert.deepEqual(result.messages.map(message => message.id), ['151', '200', '201']);
+  assert.equal(result.cursor.lastUid, 201);
+});
+
+test('重叠复查不会阻塞新增邮件的 UID 分页', async () => {
+  const found = Array.from({ length: 70 }, (_, index) => 151 + index);
+  const client = fakeClient({
+    mailbox: { uidValidity: 7n, uidNext: 221, exists: found.length },
+    search: async () => found,
+    fetchAll: async range => (Array.isArray(range) ? range : []).map(uid => ({
+      uid,
+      envelope: {
+        subject: `message-${uid}`,
+        messageId: `<${uid}@example.com>`,
+        date: new Date('2026-09-18T08:00:00.000Z'),
+        from: [{ name: '招聘团队', address: 'hr@example.com' }],
+        to: [{ address: 'candidate@example.com' }],
+      },
+      size: 100,
+    })),
+  });
+  const service = new ImapMailService(() => client);
+
+  const first = await service.listMessages(account, 'secret', {
+    cursor: { uidValidity: '7', lastUid: 200 },
+    limit: 10,
+  });
+  const second = await service.listMessages(account, 'secret', {
+    cursor: first.cursor,
+    limit: 10,
+  });
+
+  assert.deepEqual(first.messages.map(message => message.id), [
+    '201', '202', '203', '204', '205', '206', '207', '208', '209', '210',
+  ]);
+  assert.equal(first.hasMore, true);
+  assert.equal(first.cursor.lastUid, 210);
+  assert.deepEqual(second.messages.map(message => message.id), [
+    '211', '212', '213', '214', '215', '216', '217', '218', '219', '220',
+  ]);
+  assert.equal(second.hasMore, false);
+  assert.equal(second.cursor.lastUid, 220);
+});
+
 test('UIDVALIDITY 变化时按时间窗口重新建立 cursor', async () => {
   let searched = false;
   const client = fakeClient({ search: async () => { searched = true; return [13, 14]; } });
@@ -125,6 +196,21 @@ test('认证失败映射为不可重试错误', async () => {
     (error: { code?: string; retryable?: boolean }) => {
       assert.equal(error.code, 'AUTH_FAILED');
       assert.equal(error.retryable, false);
+      return true;
+    },
+  );
+});
+
+test('连接未在 required time 内建立时映射为可重试超时', async () => {
+  const service = new ImapMailService(() => fakeClient({
+    connect: async () => { throw new Error('Failed to establish connection in required time'); },
+  }));
+
+  await assert.rejects(
+    service.testConnection(account, 'secret'),
+    (error: { code?: string; retryable?: boolean }) => {
+      assert.equal(error.code, 'TIMEOUT');
+      assert.equal(error.retryable, true);
       return true;
     },
   );

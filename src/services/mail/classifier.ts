@@ -71,11 +71,11 @@ const CATEGORY_RULES: readonly CategoryRule[] = [
     category: RECRUITMENT_MAIL_CATEGORY.ASSESSMENT_INVITE,
     subject: [
       /\b(?:online |coding )?(?:assessment|test|challenge)\b/i,
-      /笔试|在线测评|人才测评|编程测试|测评(?:邀请|通知|安排)?/,
+      /笔试|在线(?:考试|测评)|考试(?:邀请|通知|安排|函)?|人才测评|编程测试|测评(?:邀请|通知|安排)?/,
     ],
     body: [
       /(?:complete|take).{0,60}(?:assessment|coding test|online test|challenge)/i,
-      /请.{0,40}(?:完成|参加).{0,30}(?:笔试|测评|在线测试|编程测试)/,
+      /请.{0,40}(?:完成|参加).{0,30}(?:笔试|考试|测评|在线测试|编程测试)/,
     ],
   },
   {

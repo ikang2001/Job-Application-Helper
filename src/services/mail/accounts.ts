@@ -15,6 +15,7 @@ export interface MailAccount {
     secure: true;
     username: string;
   };
+  imapScanRevision?: number;
   lastSyncAt?: string;
   lastError?: string;
   connectionState?: 'disconnected' | 'connected' | 'needs-authorization' | 'error';
@@ -59,6 +60,9 @@ export function normalizeMailAccount(account: MailAccount): MailAccount {
       secure: true,
       username: account.imap.username.trim(),
     } : undefined,
+    imapScanRevision: Number.isSafeInteger(account.imapScanRevision)
+      ? Math.max(0, account.imapScanRevision as number)
+      : undefined,
     lastError: account.lastError?.trim() || undefined,
   };
 }

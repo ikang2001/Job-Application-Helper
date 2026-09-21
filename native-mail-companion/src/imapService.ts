@@ -11,6 +11,8 @@ import {
   type NativeNormalizedEmail,
 } from './types.js';
 
+const UID_RECHECK_WINDOW = 50;
+
 interface AddressLike {
   name?: string;
   address?: string;
@@ -234,20 +236,29 @@ async function selectMessageUids(
   since: string | undefined,
   limit: number,
 ): Promise<{ uids: number[]; hasMore: boolean; scannedThroughUid: number }> {
+  const recheckFloor = previousUid > UID_RECHECK_WINDOW
+    ? previousUid - UID_RECHECK_WINDOW
+    : previousUid;
   const query = previousUid > 0
-    ? { uid: `${previousUid + 1}:*` }
+    ? { uid: `${recheckFloor + 1}:*` }
     : { since: parseSince(since) };
   const found = (await client.search(query, { uid: true }))
-    .filter(uid => Number.isSafeInteger(uid) && uid > previousUid)
+    .filter(uid => Number.isSafeInteger(uid) && uid > recheckFloor)
     .sort((left, right) => left - right);
-  const selected = found.slice(0, limit);
+  const newUids = found.filter(uid => uid > previousUid);
+  const selectedNew = newUids.slice(0, limit);
+  const overlapCapacity = limit - selectedNew.length;
+  const selectedOverlap = previousUid > 0 && overlapCapacity > 0
+    ? found.filter(uid => uid <= previousUid).slice(-overlapCapacity)
+    : [];
+  const selected = [...selectedOverlap, ...selectedNew].sort((left, right) => left - right);
   const highestUid = Number.isSafeInteger(mailbox.uidNext)
     ? Math.max(previousUid, (mailbox.uidNext as number) - 1)
     : previousUid;
   return {
     uids: selected,
-    hasMore: found.length > limit,
-    scannedThroughUid: selected.at(-1) ?? highestUid,
+    hasMore: newUids.length > selectedNew.length,
+    scannedThroughUid: selectedNew.at(-1) ?? highestUid,
   };
 }
 
@@ -323,7 +334,7 @@ function normalizeImapError(error: unknown): NativeMailServiceError {
   if (/auth|login|credential|password/i.test(message)) {
     return new NativeMailServiceError('AUTH_FAILED', '邮箱认证失败，请检查授权码', false);
   }
-  if (/timeout|timed out/i.test(message)) {
+  if (/timeout|timed out|required time/i.test(message)) {
     return new NativeMailServiceError('TIMEOUT', '邮箱连接超时', true);
   }
   return new NativeMailServiceError('CONNECTION_FAILED', message, true);

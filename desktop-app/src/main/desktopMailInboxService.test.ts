@@ -85,7 +85,7 @@ test('桌面招聘邮箱扫描只创建待审核项并按公司列出全部岗�
   const next = await new DesktopMailInboxService(client).scan(data);
   const pending = next.mailInbox?.reviews[0];
 
-  assert.equal(client.tested, 1);
+  assert.equal(client.tested, 0);
   assert.equal(client.getMessageCalls, 1);
   assert.equal(pending?.state, 'pending');
   assert.equal(pending?.companyName, '星河网络');
@@ -94,6 +94,43 @@ test('桌面招聘邮箱扫描只创建待审核项并按公司列出全部岗�
   assert.equal(next.records[0]?.status, '已投递');
   assert.equal(next.records[1]?.status, '已投递');
   assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 101 });
+});
+
+test('桌面邮箱扫描跳过重复预检并在瞬时连接超时后重试', async () => {
+  const client = new FakeNativeMailClient();
+  let attempts = 0;
+  client.testConnection = async () => assert.fail('扫描前不应重复建立测试连接');
+  client.listMessages = async (_accountId, options) => {
+    attempts += 1;
+    client.lastListOptions = options;
+    if (attempts === 1) throw new Error('Failed to establish connection in required time');
+    return {
+      messages: [],
+      cursor: { uidValidity: '1', lastUid: 500 },
+      hasMore: false,
+    };
+  };
+
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+    mailInbox: {
+      status: 'error',
+      accounts: [],
+      reviews: [],
+      cursors: { 'account-1': { uidValidity: '1', lastUid: 499 } },
+    },
+  });
+
+  assert.equal(attempts, 2);
+  assert.equal(client.lastListOptions?.cursor, undefined);
+  assert.ok(client.lastListOptions?.since);
+  assert.equal(next.mailInbox?.status, 'idle');
+  assert.equal(next.mailInbox?.accounts[0]?.connection, 'connected');
+  assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 500 });
 });
 
 test('包含测评笔试或面试安排的邮件进入待审核，普通投递确认仍被过滤', async () => {
@@ -143,6 +180,51 @@ test('包含测评笔试或面试安排的邮件进入待审核，普通投递�
   ]);
   assert.equal(next.mailInbox?.reviews[0]?.companyName, '新辰集团');
   assert.equal(next.mailInbox?.reviews[0]?.suggestedStage, 'assessment');
+});
+
+test('在线考试邀请函包含固定开始时间时进入笔试待审核', async () => {
+  const target = record('示例岗位', 'https://jobs.example.com/example', '示例科技');
+  const client = new FakeNativeMailClient();
+  client.listMessages = async () => ({
+    messages: [{
+      id: 'online-exam-1',
+      from: { name: '示例科技', address: 'exam@example.com' },
+      to: ['candidate@example.com'],
+      subject: '【示例科技】在线考试邀请函！',
+      receivedAt: '2026-09-18T06:50:54.000Z',
+    }],
+    cursor: { uidValidity: '1', lastUid: 302 },
+    hasMore: false,
+  });
+  client.getMessage = async () => ({
+    id: 'online-exam-1',
+    accountId: 'account-1',
+    from: { name: '示例科技', address: 'exam@example.com' },
+    to: ['candidate@example.com'],
+    subject: '【示例科技】在线考试邀请函！',
+    receivedAt: '2026-09-18T06:50:54.000Z',
+    text: [
+      '非常高兴邀请您参加示例科技在线考试，希望您能按时完成。',
+      '试卷名称：示例科技2027届校招笔试-示例方向',
+      '岗位名称：示例岗位',
+      '开始时间（北京时间）：2026-09-19 19:00',
+    ].join('\n'),
+    truncated: false,
+  });
+
+  const next = await new DesktopMailInboxService(client).scan({
+    schemaVersion: 1,
+    records: [target],
+    favoriteRecordIds: [],
+    careerFairs: [],
+    sync: { status: 'idle' },
+  });
+
+  assert.equal(next.mailInbox?.reviews[0]?.state, 'pending');
+  assert.equal(next.mailInbox?.reviews[0]?.companyName, '示例科技');
+  assert.deepEqual(next.mailInbox?.reviews[0]?.candidateRecordIds, [target.id]);
+  assert.equal(next.mailInbox?.reviews[0]?.suggestedStage, 'writtenTest');
+  assert.equal(next.mailInbox?.reviews[0]?.extractedAt, '2026-09-19T19:00:00');
 });
 
 test('桌面端按邮件接收时间识别带空格的三天内测评截止时间', async () => {
