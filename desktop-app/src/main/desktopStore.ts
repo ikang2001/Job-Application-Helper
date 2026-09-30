@@ -4,6 +4,7 @@ import { normalizeApplicationRecords } from '../../../src/shared/applicationReco
 import { parseAndValidateBackup } from '../../../src/shared/backup.ts';
 import type { ApplicationRecord, BackupDocument } from '../../../src/shared/types.ts';
 import { normalizeCareerFairs } from '../domain/careerFairs.ts';
+import { normalizeMailScanMinutes, normalizeReminderCheckMinutes } from '../shared/pollingIntervals.ts';
 import type {
   CareerFair,
   DesktopMailAccountState,
@@ -33,6 +34,7 @@ export interface StoredSyncState extends DesktopSyncState {
 }
 
 export interface StoredMobileSyncSettings {
+  reminderCheckIntervalMinutes?: number;
   enabled: boolean;
   serverUrl: string;
   deviceId: string;
@@ -61,6 +63,7 @@ export interface StoredDesktopMailInbox {
 }
 
 export interface DesktopData {
+  mailScanIntervalMinutes?: number;
   schemaVersion: 1;
   records: ApplicationRecord[];
   favoriteRecordIds: string[];
@@ -76,6 +79,7 @@ export interface DesktopData {
 function emptyData(): DesktopData {
   return {
     schemaVersion: DESKTOP_DATA_SCHEMA_VERSION,
+    mailScanIntervalMinutes: normalizeMailScanMinutes(undefined),
     records: [],
     favoriteRecordIds: [],
     careerFairs: [],
@@ -137,6 +141,7 @@ function normalizeMobileSync(value: unknown): StoredMobileSyncSettings | undefin
     encryptedWriteToken,
     encryptedReadToken,
     encryptedPairingKey,
+    reminderCheckIntervalMinutes: normalizeReminderCheckMinutes(input.reminderCheckIntervalMinutes),
     lastRevision: typeof input.lastRevision === 'number' && Number.isSafeInteger(input.lastRevision)
       ? input.lastRevision
       : undefined,
@@ -265,6 +270,7 @@ export function normalizeDesktopData(value: unknown): DesktopData {
   return {
     schemaVersion: DESKTOP_DATA_SCHEMA_VERSION,
     records,
+    mailScanIntervalMinutes: normalizeMailScanMinutes(input.mailScanIntervalMinutes),
     favoriteRecordIds: Array.isArray(input.favoriteRecordIds)
       ? [...new Set(input.favoriteRecordIds.filter(
           (id): id is string => typeof id === 'string' && recordIds.has(id),

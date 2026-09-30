@@ -17,6 +17,10 @@ export interface RecordsTableProps {
   onStatusChange(record: ApplicationRecord, status: ApplicationRecordStatus): void;
   onSaveNotes(record: ApplicationRecord, notes: string): void;
   onEditSchedule(record: ApplicationRecord): void;
+  checkedIds?: ReadonlySet<string>;
+  onCheck?(record: ApplicationRecord, checked: boolean): void;
+  onDelete?(record: ApplicationRecord): void;
+  onDeleteCompany?(key: string): void;
 }
 
 export function RecordsTable({
@@ -32,6 +36,9 @@ export function RecordsTable({
   onStatusChange,
   onSaveNotes,
   onEditSchedule,
+  checkedIds,
+  onCheck,
+  onDelete,
 }: RecordsTableProps) {
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const floatingScrollRef = useRef<HTMLDivElement>(null);
@@ -106,6 +113,11 @@ export function RecordsTable({
             >
               <td>
                 <div className="record-identity-cell">
+                  {onCheck && <input type="checkbox" className="record-delete-checkbox"
+                    aria-label={`选择 ${record.companyName} ${record.jobTitle}`}
+                    checked={checkedIds?.has(record.id) ?? false} disabled={busy || Boolean(savingRecordId) || Boolean(savingFavoriteRecordId)}
+                    onClick={event => event.stopPropagation()}
+                    onChange={event => onCheck(record, event.target.checked)} />}
                   <button
                     type="button"
                     className={`favorite-toggle${favoriteRecordIds.has(record.id) ? ' is-favorite' : ''}`}
@@ -125,6 +137,10 @@ export function RecordsTable({
                     <span>{record.jobTitle || '未填写岗位'}</span>
                   </button>
                 </div>
+                {onDelete && <button type="button" className="record-delete-button"
+                  aria-label={`删除 ${record.companyName} ${record.jobTitle}`}
+                  disabled={busy || Boolean(savingRecordId) || Boolean(savingFavoriteRecordId)}
+                  onClick={event => { event.stopPropagation(); onDelete(record); }}>删除</button>}
               </td>
               <td>
                 <select

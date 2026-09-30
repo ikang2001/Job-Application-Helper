@@ -25,6 +25,7 @@ import { WebDavPanel } from './WebDavPanel.tsx';
 import {
   activeApplicationCount,
   filterAndSortRecords,
+  groupRecordsByCompany,
   pipelineCounts,
   type RecordSort,
   type StatusFilter,
@@ -69,6 +70,9 @@ export function App() {
   const [savingRecordId, setSavingRecordId] = useState('');
   const [savingFavoriteRecordId, setSavingFavoriteRecordId] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
+  const selectionScope = JSON.stringify([query, status, section, viewMode]);
+  const [selection, setSelection] = useState<{ scope: string; ids: string[] }>({ scope: selectionScope, ids: [] });
+  if (selection.scope !== selectionScope) setSelection({ scope: selectionScope, ids: [] });
 
   useEffect(() => {
     let active = true;
@@ -102,6 +106,8 @@ export function App() {
       : state?.records ?? [];
     return filterAndSortRecords(records, query, status, sort);
   }, [favoriteRecordIds, query, section, sort, state?.records, status]);
+  const checkedRecords = visibleRecords.filter(record => selection.scope === selectionScope && selection.ids.includes(record.id));
+  const checkedIds = new Set(checkedRecords.map(record => record.id));
   const upcomingCount = useMemo(
     () => upcomingRecruitmentSchedules(state?.records ?? []).length,
     [state?.records],
@@ -149,15 +155,29 @@ export function App() {
   };
 
   const deleteRecord = async (record: ApplicationRecord) => {
-    if (!window.confirm(`确定删除“${record.companyName} · ${record.jobTitle}”吗？`)) return;
+    await deleteRecords([record], '删除投递记录', true);
+  };
+
+  const deleteRecords = async (records: ApplicationRecord[], title: string, single = false) => {
+    if (!records.length || busy || savingRecordId || savingFavoriteRecordId) return;
+    const details = records.map(record => `• ${record.companyName} · ${record.jobTitle}`).join('\n');
+    if (!window.confirm(`${title}：共 ${records.length} 个岗位\n\n${details}\n\n将删除以上记录及其安排和收藏，并按现有同步设置同步删除。邮箱邮件、授权和招聘会不受影响。此操作不可直接撤销，是否继续？`)) return;
     setBusy('delete');
-    const result = await window.desktopApi.deleteRecord(record.id);
-    if (result.success && result.data) {
-      setState(result.data);
-      setPanel(null);
-      setNotice({ type: 'success', text: '投递记录已删除' });
-    } else showError(result.error, '删除记录失败');
-    setBusy('');
+    try {
+      const result = single
+        ? await window.desktopApi.deleteRecord(records[0].id)
+        : await window.desktopApi.deleteRecords(records.map(record => record.id));
+      if (result.success && result.data) {
+        setState(result.data);
+        if (selectedRecord && records.some(record => record.id === selectedRecord.id)) setPanel(null);
+        setSelection({ scope: selectionScope, ids: [] });
+        setNotice(localSaveNotice(`已删除 ${records.length} 条投递记录`, result.data));
+      } else showError(result.error, '删除记录失败');
+    } catch (error) {
+      showError(error instanceof Error ? error.message : undefined, '删除记录失败');
+    } finally {
+      setBusy('');
+    }
   };
 
   const toggleFavorite = async (record: ApplicationRecord, favorite: boolean) => {
@@ -281,6 +301,25 @@ export function App() {
       setNotice({ type: 'success', text: enabled ? '手机自动同步已恢复' : '手机自动同步已暂停' });
     } else showError(result.error, '修改手机同步状态失败');
     setBusy('');
+  };
+
+  const setPollingInterval = async (target: 'mobile' | 'mail', minutes: number) => {
+    setBusy(`${target}-interval`);
+    try {
+      const result = target === 'mobile'
+        ? await window.desktopApi.setMobileReminderInterval(minutes)
+        : await window.desktopApi.setMailScanInterval(minutes);
+      if (result.success && result.data) {
+        setState(result.data);
+        setNotice({ type: 'success', text: target === 'mobile'
+          ? `云端提醒检查间隔已保存为 ${minutes} 分钟`
+          : `邮箱自动扫描间隔已保存为 ${minutes} 分钟` });
+      } else showError(result.error, '保存检查间隔失败');
+    } catch {
+      showError(undefined, '保存检查间隔失败，请重试');
+    } finally {
+      setBusy('');
+    }
   };
 
   const syncMobileNow = async () => {
@@ -437,6 +476,7 @@ export function App() {
             records={state.records}
             busy={busy.startsWith('mail-')}
             onScan={() => void scanMail()}
+            onSetScanInterval={minutes => void setPollingInterval('mail', minutes)}
             onConfirm={input => void confirmMailReview(input)}
             onIgnore={reviewId => void ignoreMailReview(reviewId)}
             onIgnoreMany={reviewIds => void ignoreMailReviews(reviewIds)}
@@ -482,8 +522,26 @@ export function App() {
               <label className="sort-field"><span>排序</span><select value={sort} onChange={event => setSort(event.target.value as RecordSort)}><option value="recent">最近投递</option><option value="oldest">最早投递</option><option value="company">公司名称</option><option value="stage">求职阶段（接近录用优先）</option><option value="status">状态名称</option></select></label>
             </div>
           </div>
+          <div className="record-delete-toolbar">
+            <label><input type="checkbox" aria-label="全选当前筛选结果"
+              checked={visibleRecords.length > 0 && checkedRecords.length === visibleRecords.length}
+              disabled={Boolean(busy || savingRecordId || savingFavoriteRecordId) || !visibleRecords.length}
+              onChange={event => setSelection({ scope: selectionScope, ids: event.target.checked ? visibleRecords.map(record => record.id) : [] })} />
+              全选当前筛选结果</label>
+            <span>已选 {checkedRecords.length} 条</span>
+            <button type="button" className="button-danger" disabled={!checkedRecords.length || Boolean(busy || savingRecordId || savingFavoriteRecordId)}
+              onClick={() => void deleteRecords(checkedRecords, '批量删除投递记录')}>批量删除（{checkedRecords.length}）</button>
+          </div>
           <RecordList
             records={visibleRecords}
+            checkedIds={checkedIds}
+            onCheck={(record, checked) => setSelection({ scope: selectionScope, ids: checked
+              ? [...checkedIds, record.id] : [...checkedIds].filter(id => id !== record.id) })}
+            onDelete={record => void deleteRecord(record)}
+            onDeleteCompany={key => {
+              const group = groupRecordsByCompany(state.records).find(candidate => candidate.key === key);
+              if (group) void deleteRecords(group.records, `删除公司“${group.companyName}”的全部岗位（含当前筛选未显示的岗位）`);
+            }}
             selectedId={selectedRecord?.id}
             busy={Boolean(busy)}
             savingRecordId={savingRecordId}
@@ -531,6 +589,7 @@ export function App() {
           onClose={() => setMobileSyncOpen(false)}
           onSetup={input => void setupMobileSync(input)}
           onSetEnabled={enabled => void setMobileSyncEnabled(enabled)}
+          onSetReminderInterval={minutes => void setPollingInterval('mobile', minutes)}
           onSync={() => void syncMobileNow()}
         />
       )}

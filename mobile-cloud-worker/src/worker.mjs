@@ -1,9 +1,11 @@
 import { KvSnapshotStore } from './kvSnapshotStore.mjs';
 import { buildPushPayload } from '@block65/webcrypto-web-push';
+import { DEFAULT_REMINDER_CHECK_MINUTES, isReminderCheckDue } from '../../mobile-cloud/lib/reminderSettings.mjs';
 
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const DEVICE_PATH = /^\/api\/snapshots\/([A-Za-z0-9_-]{16,64})$/;
 const REMINDER_PATH = /^\/api\/reminders\/([A-Za-z0-9_-]{16,64})$/;
+const REMINDER_SETTINGS_PATH = /^\/api\/reminder-settings\/([A-Za-z0-9_-]{16,64})$/;
 const PUSH_SUBSCRIPTION_PATH = /^\/api\/push-subscriptions\/([A-Za-z0-9_-]{16,64})$/;
 const PUSHPLUS_CONFIG_PATH = /^\/api\/pushplus-config\/([A-Za-z0-9_-]{16,64})$/;
 const PUSHPLUS_API_URL = 'https://www.pushplus.plus/send';
@@ -13,6 +15,8 @@ export default {
     return handleRequest(request, env);
   },
   scheduled(controller, env, context) {
+    // 旧的一分钟 Cron 在配置传播期间仍可能触发；非五分钟刻度不访问 KV。
+    if (Math.floor(controller.scheduledTime / 60_000) % DEFAULT_REMINDER_CHECK_MINUTES !== 0) return;
     context.waitUntil(processDueReminders(env, controller.scheduledTime));
   },
 };
@@ -34,6 +38,8 @@ export async function handleRequest(request, env) {
     if (snapshotMatch) return await handleSnapshot(request, env, snapshotMatch[1]);
     const reminderMatch = REMINDER_PATH.exec(url.pathname);
     if (reminderMatch) return await handleReminderPlan(request, env, reminderMatch[1]);
+    const reminderSettingsMatch = REMINDER_SETTINGS_PATH.exec(url.pathname);
+    if (reminderSettingsMatch) return await handleReminderSettings(request, env, reminderSettingsMatch[1]);
     const subscriptionMatch = PUSH_SUBSCRIPTION_PATH.exec(url.pathname);
     if (subscriptionMatch) return await handlePushSubscription(request, env, subscriptionMatch[1]);
     const pushPlusMatch = PUSHPLUS_CONFIG_PATH.exec(url.pathname);
@@ -52,6 +58,7 @@ export async function processDueReminders(env, scheduledTime = Date.now()) {
   const store = new KvSnapshotStore(env.MOBILE_SYNC_KV);
   const plans = await store.listReminderPlans();
   for (const plan of plans) {
+    if (!isReminderCheckDue(plan.checkIntervalMinutes, scheduledTime)) continue;
     const channels = await reminderChannels(env, store, plan.deviceId);
     for (const channel of channels) {
       for (const group of selectDueReminderJobs(plan.jobs, scheduledTime, channel.id)) {
@@ -95,6 +102,16 @@ export function selectDueReminderJobs(jobs, now = Date.now(), channel) {
     due.sort((left, right) => Date.parse(right.dueAt) - Date.parse(left.dueAt));
     return { reminder: due[0], handledIds: due.map(job => job.id) };
   });
+}
+
+async function handleReminderSettings(request, env, deviceId) {
+  requireBindings(env);
+  if (request.method !== 'PUT') return json({ error: '请求方法不受支持' }, 405, env);
+  const store = new KvSnapshotStore(env.MOBILE_SYNC_KV);
+  if (!await store.authorize(deviceId, bearerToken(request), 'write')) return unauthorized(env);
+  const input = await readJsonBody(request, 8 * 1024);
+  await store.setReminderCheckInterval(deviceId, input?.checkIntervalMinutes);
+  return json({ ok: true, checkIntervalMinutes: input.checkIntervalMinutes }, 200, env);
 }
 
 async function provisionDevice(request, env) {

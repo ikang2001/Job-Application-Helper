@@ -12,6 +12,30 @@ import type {
 
 const NOW = '2026-09-09T12:00:00.000Z';
 
+test('邮箱扫描默认15分钟，热更新间隔不重复启动初次扫描，停止后不再扫描', context => {
+  context.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const service = new DesktopMailInboxService(new FakeNativeMailClient());
+  let scans = 0;
+  service.start(() => { scans += 1; });
+  context.mock.timers.tick(2_000);
+  assert.equal(scans, 1);
+  context.mock.timers.tick(15 * 60_000 - 2_000);
+  assert.equal(scans, 2);
+  service.setScanInterval(5);
+  context.mock.timers.tick(5 * 60_000 - 1);
+  assert.equal(scans, 2);
+  context.mock.timers.tick(1);
+  assert.equal(scans, 3);
+  service.stop();
+  context.mock.timers.tick(30 * 60_000);
+  assert.equal(scans, 3);
+  service.start(() => { scans += 1; }, 10);
+  context.mock.timers.tick(2_000);
+  context.mock.timers.tick(10 * 60_000 - 2_000);
+  assert.equal(scans, 5);
+  service.stop();
+});
+
 function record(jobTitle: string, sourceUrl: string, companyName = '星河网络'): ApplicationRecord {
   return saveDesktopRecord([], {
     companyName,
@@ -383,6 +407,59 @@ test('已有待审核邮件根据链接有效期补齐截止时间且不重新�
   assert.equal(client.getMessageCalls, 0);
   assert.equal(next.mailInbox?.reviews[0]?.deadlineAt, '2026-09-16T06:00:00.000Z');
   assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 401 });
+});
+
+test('旧笔试有效期候选自动纠正为截止时间，已确认记录保持原样', async () => {
+  const client = new FakeNativeMailClient();
+  client.listMessages = async (_accountId, options) => ({
+    messages: [], cursor: options.cursor ?? { uidValidity: '1', lastUid: 0 }, hasMore: false,
+  });
+  const data: DesktopData = {
+    schemaVersion: 1, records: [], favoriteRecordIds: [], careerFairs: [], sync: { status: 'idle' },
+    mailInbox: {
+      status: 'idle', accounts: [], cursors: {},
+      reviews: ['pending', 'confirmed'].map((state, index) => ({
+        id: `window-${index}`, accountId: 'account-1', messageId: `${index}`, from: 'hr@example.com',
+        subject: '示例科技笔试邀请', receivedAt: '2026-09-22T10:00:00Z',
+        summary: '笔试有效期:2026年09月22日 20:00:00 - 2026年09月28日 12:00:00，请合理安排作答时间。',
+        category: 'assessment_invite', suggestedStage: 'writtenTest', candidateRecordIds: [],
+        extractedAt: '2026-09-22T20:00:00', state: state === 'pending' ? 'pending' : 'confirmed',
+      })),
+    },
+  };
+  const next = await new DesktopMailInboxService(client).scan(data);
+  const pending = next.mailInbox?.reviews.find(item => item.state === 'pending');
+  assert.equal(pending?.extractedAt, undefined);
+  assert.equal(pending?.deadlineAt, '2026-09-28T12:00:00');
+  assert.deepEqual(next.mailInbox?.reviews.find(item => item.state === 'confirmed'), data.mailInbox?.reviews[1]);
+  assert.equal(client.getMessageCalls, 0);
+  assert.deepEqual(next.records, data.records);
+});
+
+test('旧AI面试候选补齐跨月截止时间，已处理邮件和岗位数据保持不变', async () => {
+  const client = new FakeNativeMailClient();
+  client.listMessages = async () => ({ messages: [], cursor: { uidValidity: '1', lastUid: 101 }, hasMore: false });
+  const data: DesktopData = {
+    schemaVersion: 1, records: [record('示例岗位', 'https://jobs.example.com/test')],
+    favoriteRecordIds: [], careerFairs: [], sync: { status: 'idle' },
+    mailInbox: {
+      status: 'idle', accounts: [], cursors: {},
+      reviews: (['pending', 'confirmed', 'ignored'] as const).map((state, index) => ({
+        id: `ai-window-${index}`, accountId: 'account-1', messageId: `${index}`, from: 'hr@example.com',
+        subject: '示例科技邀请您参与校招AI面试', receivedAt: '2026-09-28T01:36:01Z',
+        summary: '请在指定时间内独立完成。面试时间:(北京时间 UTC+08:00) 2026-09-28 09:35:59 - 2026-10-01 09:35:59',
+        category: 'interview_invite', suggestedStage: 'ai', candidateRecordIds: [],
+        extractedAt: '2026-09-28T09:35:00', state,
+      })),
+    },
+  };
+  const next = await new DesktopMailInboxService(client).scan(data);
+  assert.equal(next.mailInbox?.reviews.find(item => item.state === 'pending')?.deadlineAt, '2026-10-01T09:35:00');
+  for (const state of ['confirmed', 'ignored']) {
+    assert.deepEqual(next.mailInbox?.reviews.find(item => item.state === state), data.mailInbox?.reviews.find(item => item.state === state));
+  }
+  assert.equal(client.getMessageCalls, 0);
+  assert.deepEqual(next.records, data.records);
 });
 
 test('已有未匹配的云枢邮件根据品牌简称补齐对应岗位且不重新读取旧邮件', async () => {

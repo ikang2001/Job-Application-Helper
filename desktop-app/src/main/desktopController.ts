@@ -18,7 +18,7 @@ import {
   ignoreDesktopMailReviews,
 } from '../domain/desktopMail.ts';
 import {
-  deleteDesktopRecord,
+  deleteDesktopRecords,
   mergeDesktopCsv,
   parseDesktopRecordsJson,
   saveDesktopRecord,
@@ -29,6 +29,7 @@ import { DesktopLocalSyncService } from './desktopLocalSyncService.ts';
 import { DesktopSyncService } from './desktopSyncService.ts';
 import { MobileSnapshotSyncService } from './mobileSnapshotSyncService.ts';
 import { DesktopMailInboxService } from './desktopMailInboxService.ts';
+import { isMailScanMinutes, normalizeMailScanMinutes } from '../shared/pollingIntervals.ts';
 
 export class DesktopController {
   private queue: Promise<unknown> = Promise.resolve();
@@ -59,7 +60,7 @@ export class DesktopController {
       this.localSyncService.watch(() => { void this.refreshFromShared(); });
       this.mailInboxService.start(() => {
         void this.scanMail().catch(error => console.error('桌面招聘邮箱自动扫描失败', error));
-      });
+      }, data.mailScanIntervalMinutes);
       this.notify(data);
     });
   }
@@ -98,16 +99,24 @@ export class DesktopController {
   }
 
   deleteRecord(id: string): Promise<DesktopState> {
+    return this.deleteRecords([id]);
+  }
+
+  deleteRecords(ids: string[]): Promise<DesktopState> {
     return this.enqueue(async () => {
       const data = await this.store.read();
+      const records = deleteDesktopRecords(data.records, ids);
+      const remainingIds = new Set(records.map(record => record.id));
+      const deletedIds = data.records.filter(record => !remainingIds.has(record.id)).map(record => record.id);
+      if (!deletedIds.length) return this.toState(data);
       let next = {
         ...data,
-        records: deleteDesktopRecord(data.records, id),
-        favoriteRecordIds: data.favoriteRecordIds.filter(recordId => recordId !== id),
+        records,
+        favoriteRecordIds: data.favoriteRecordIds.filter(recordId => remainingIds.has(recordId)),
         sync: this.markLocalChange(data),
       };
       await this.store.write(next);
-      next = await this.syncLocal(next, data.records.some(record => record.id === id) ? [id] : []);
+      next = await this.syncLocal(next, deletedIds);
       next = await this.autoSync(next);
       this.notify(next);
       return this.toState(next);
@@ -241,6 +250,25 @@ export class DesktopController {
     return this.enqueue(async () => {
       const next = await this.mobileSnapshotSyncService.setEnabled(await this.store.read(), enabled);
       this.notify(next);
+      return this.toState(next);
+    });
+  }
+
+  setMobileReminderInterval(minutes: number): Promise<DesktopState> {
+    return this.enqueue(async () => {
+      const next = await this.mobileSnapshotSyncService.setReminderInterval(await this.store.read(), minutes);
+      this.notify(next, false);
+      return this.toState(next);
+    });
+  }
+
+  setMailScanInterval(minutes: number): Promise<DesktopState> {
+    return this.enqueue(async () => {
+      if (!isMailScanMinutes(minutes)) throw new Error('邮箱扫描间隔须为 1～120 分钟的整数');
+      const next = { ...await this.store.read(), mailScanIntervalMinutes: minutes };
+      await this.store.write(next);
+      this.mailInboxService.setScanInterval(minutes);
+      this.notify(next, false);
       return this.toState(next);
     });
   }
@@ -414,6 +442,7 @@ export class DesktopController {
       localSync: this.localSyncService.getState(),
       mobileSync: this.mobileSnapshotSyncService.getState(data.mobileSync),
       mailInbox: {
+        scanIntervalMinutes: normalizeMailScanMinutes(data.mailScanIntervalMinutes),
         status: data.mailInbox?.status ?? 'idle',
         accounts: data.mailInbox?.accounts ?? [],
         reviews: data.mailInbox?.reviews ?? [],
