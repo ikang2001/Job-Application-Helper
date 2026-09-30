@@ -1,4 +1,5 @@
 import { validateEnvelope, validDeviceId } from '../../mobile-cloud/lib/snapshotEnvelope.mjs';
+import { isReminderCheckMinutes, normalizeReminderCheckMinutes } from '../../mobile-cloud/lib/reminderSettings.mjs';
 
 const DEVICE_PREFIX = 'device:';
 const SNAPSHOT_PREFIX = 'snapshot:';
@@ -64,7 +65,19 @@ export class KvSnapshotStore {
       deliveries: job.deliveries,
     }]));
     const jobs = plan.jobs.map(job => ({ ...job, ...deliveryState.get(job.id) }));
-    await this.namespace.put(reminderKey(deviceId), JSON.stringify({ ...plan, deviceId, jobs }));
+    await this.namespace.put(reminderKey(deviceId), JSON.stringify({
+      ...plan, deviceId, jobs,
+      checkIntervalMinutes: normalizeReminderCheckMinutes(current?.checkIntervalMinutes),
+    }));
+  }
+
+  async setReminderCheckInterval(deviceId, minutes) {
+    if (!validDeviceId(deviceId) || !isReminderCheckMinutes(minutes)) {
+      throw dataError('INVALID_REMINDER_PLAN', '提醒检查间隔须为 5～60 分钟，且是 5 的倍数');
+    }
+    const current = await this.getReminderPlan(deviceId);
+    const plan = current ?? { schemaVersion: 1, deviceId, updatedAt: new Date().toISOString(), jobs: [] };
+    await this.namespace.put(reminderKey(deviceId), JSON.stringify({ ...plan, checkIntervalMinutes: minutes }));
   }
 
   async listReminderPlans() {

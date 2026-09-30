@@ -125,6 +125,10 @@ function registerIpc(controller: DesktopController): void {
     resultHandler((id: string) => controller.deleteRecord(id)),
   );
   ipcMain.handle(
+    DESKTOP_CHANNELS.deleteRecords,
+    resultHandler((ids: string[]) => controller.deleteRecords(ids)),
+  );
+  ipcMain.handle(
     DESKTOP_CHANNELS.setRecordFavorite,
     resultHandler((input: DesktopRecordFavoriteInput) => controller.setRecordFavorite(input)),
   );
@@ -186,6 +190,8 @@ function registerIpc(controller: DesktopController): void {
   ipcMain.handle(DESKTOP_CHANNELS.syncMobileNow, resultHandler(() => controller.syncMobileNow()));
   ipcMain.handle(DESKTOP_CHANNELS.getMobilePairing, resultHandler(() => controller.getMobilePairing()));
   ipcMain.handle(DESKTOP_CHANNELS.scanMail, resultHandler(() => controller.scanMail()));
+  ipcMain.handle(DESKTOP_CHANNELS.setMobileReminderInterval, resultHandler((minutes: number) => controller.setMobileReminderInterval(minutes)));
+  ipcMain.handle(DESKTOP_CHANNELS.setMailScanInterval, resultHandler((minutes: number) => controller.setMailScanInterval(minutes)));
   ipcMain.handle(
     DESKTOP_CHANNELS.confirmMailReview,
     resultHandler((input: DesktopMailReviewDecisionInput) => controller.confirmMailReview(input)),

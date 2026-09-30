@@ -115,6 +115,38 @@ test('extractor recognizes absolute expiry and relative completion deadlines', (
   assert.equal(validityWindow.deadlineAt, '2026-09-17T18:08:00');
 });
 
+test('笔试有效窗口取截止时间，固定场次保留开始时间', () => {
+  const cases = [
+    { text: '笔试有效期:2026年09月22日 20:00:00 - 2026年09月28日 12:00:00(其余时段均不可作答,请合理安排作答时间)', start: undefined, end: '2026-09-28T12:00:00' },
+    { text: '考试时间：2026/09/22 20:00 至 2026/09/28 12:00，期间可任选时间完成。', start: undefined, end: '2026-09-28T12:00:00' },
+    { text: '笔试时间：2026-09-22 20:00 - 2026-09-22 22:00，请准时参加。', start: '2026-09-22T20:00:00', end: undefined },
+    { text: '统一开考时间：2026-09-22 20:00。提交截止：2026-09-22 22:00。', start: '2026-09-22T20:00:00', end: '2026-09-22T22:00:00' },
+    { text: '笔试请于2026-09-28 12:00前完成。', start: undefined, end: '2026-09-28T12:00:00' },
+    { text: '笔试有效期：2026-09-22 20:00 至 2026-09-28 12:00。统一开考时间：2026-09-23 09:00。', start: '2026-09-23T09:00:00', end: '2026-09-28T12:00:00' },
+  ];
+  for (const entry of cases) {
+    const extracted = extractRecruitmentData({ ...interviewEmail, subject: '示例科技笔试邀请', text: entry.text });
+    assert.equal(extracted.scheduledAt, entry.start, entry.text);
+    assert.equal(extracted.deadlineAt, entry.end, entry.text);
+  }
+});
+
+test('AI面试指定时间内完成的跨月窗口取终点，不把其他日期区间当截止时间', () => {
+  const body = '完成作答预计需要30分钟，请提前规划好时间，并在指定时间内独立完成。'
+    + '面试信息 '.repeat(20)
+    + '面试时间:(北京时间 UTC+08:00) 2026-09-28 09:35:59 - 2026-10-01 09:35:59';
+  const email = { ...interviewEmail, subject: '示例科技邀请您参与校招AI面试', text: body };
+  assert.equal(extractRecruitmentData(email).deadlineAt, '2026-10-01T09:35:00');
+  assert.equal(extractRecruitmentData({ ...email, text: '', html: `<p>${body}</p>` }).deadlineAt, '2026-10-01T09:35:00');
+  for (const text of [
+    '面试时间:2026-09-28 09:35:59 - 2026-09-28 10:05:59，请准时参加。',
+    '请在指定时间内完成。招聘宣传时间:2026-09-28 09:35:59 - 2026-10-01 09:35:59',
+    '请在指定时间内完成。面试时间:2026-10-01 09:35:59 - 2026-09-28 09:35:59',
+    '请在指定时间内完成。面试时间:2026-09-28 09:35:59 - 2026-13-01 09:35:59',
+  ]) assert.equal(extractRecruitmentData({ ...email, text }).deadlineAt, undefined, text);
+  assert.equal(extractRecruitmentData({ ...email, subject: '示例科技正式面试通知', text: '面试时间:2026-09-28 09:35:59 - 2026-09-28 10:05:59' }).interviewAt, '2026-09-28T09:35:00');
+});
+
 test('extractor reads the employer name from Chinese assessment subjects before platform domains', () => {
   const extracted = extractRecruitmentData({
     ...interviewEmail,

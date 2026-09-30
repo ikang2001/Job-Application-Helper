@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createBackupDocument, serializeBackup } from '../../../src/shared/backup.ts';
 import type { ApplicationRecord, BackupData, ResumeProfileLibrary, UserProfile } from '../../../src/shared/types.ts';
 import {
+  deleteDesktopRecords,
   mergeDesktopCsv,
   parseDesktopRecordsJson,
   saveDesktopRecord,
@@ -14,6 +15,17 @@ import { saveCareerFair } from './careerFairs.ts';
 import { serializeApplicationRecordsCsv } from '../../../src/shared/applicationRecords.ts';
 
 const NOW = '2026-09-04T08:00:00.000Z';
+
+test('批量删除仅删除指定ID，重复ID幂等且非法参数整体拒绝', () => {
+  const first = saveDesktopRecord([], input(), NOW).record;
+  const second = saveDesktopRecord([], input({ companyName: '另一示例', sourceUrl: 'https://jobs.example.com/2' }), NOW).record;
+  const records = [first, second];
+  assert.deepEqual(deleteDesktopRecords(records, [first.id, first.id, 'missing']), [second]);
+  assert.equal(records.length, 2);
+  assert.throws(() => deleteDesktopRecords(records, []));
+  assert.throws(() => deleteDesktopRecords(records, [first.id, ' ']));
+  assert.deepEqual(deleteDesktopRecords(records, ['missing']), records);
+});
 
 function input(overrides: Partial<Parameters<typeof saveDesktopRecord>[1]> = {}) {
   return {

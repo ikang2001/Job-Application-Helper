@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleRequest, processDueReminders } from '../src/worker.mjs';
+import worker, { handleRequest, processDueReminders } from '../src/worker.mjs';
 
 const BASE_URL = 'https://jobs.example.com';
 const ADMIN_TOKEN = 'test-admin-token-123456';
 
 class FakeKv {
   values = new Map();
+  listCalls = 0;
 
   async get(key) {
     return this.values.get(key) ?? null;
@@ -21,12 +22,89 @@ class FakeKv {
   }
 
   async list({ prefix = '' } = {}) {
+    this.listCalls += 1;
     return {
       keys: [...this.values.keys()].filter(key => key.startsWith(prefix)).map(name => ({ name })),
       list_complete: true,
     };
   }
 }
+
+test('旧的一分钟触发器每日最多列举288次，空计划不额外写KV', async () => {
+  const env = environment();
+  const day = Date.parse('2026-09-29T00:00:00Z');
+  for (let minute = 0; minute < 1440; minute += 1) {
+    const tasks = [];
+    worker.scheduled({ scheduledTime: day + minute * 60_000 }, env, { waitUntil: task => tasks.push(task) });
+    await Promise.all(tasks);
+  }
+  assert.equal(env.MOBILE_SYNC_KV.listCalls, 288);
+  assert.equal(env.MOBILE_SYNC_KV.values.size, 0);
+});
+
+test('提醒检查间隔按设备鉴权保存，保留计划与送达状态，延迟检查可补发且不重复', async () => {
+  const env = environment();
+  const provision = () => handleRequest(request('/api/devices', {
+    method: 'POST', headers: { authorization: `Bearer ${ADMIN_TOKEN}` }, body: '{}',
+  }), env).then(result => result.json());
+  const device = await provision();
+  const other = await provision();
+  const path = `/api/reminder-settings/${device.deviceId}`;
+  const save = (minutes, token = device.writeToken) => handleRequest(request(path, {
+    method: 'PUT', headers: { authorization: `Bearer ${token}` },
+    body: JSON.stringify({ checkIntervalMinutes: minutes }),
+  }), env);
+  assert.equal((await save(10, device.readToken)).status, 401);
+  assert.equal((await save(10, other.writeToken)).status, 401);
+  for (const value of [0, 1, 6, 65, 5.5, '10', null]) assert.equal((await save(value)).status, 400);
+  const result = await save(10);
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).checkIntervalMinutes, 10);
+  const job = {
+    id: 'example-reminder', eventId: 'example-event', offsetMinutes: 300,
+    dueAt: '2026-09-29T12:03:00Z', eventAt: '2026-09-29T17:03:00Z',
+    payload: { algorithm: 'A256GCM', iv: 'AAAAAAAAAAAAAAAA', authTag: 'AAAAAAAAAAAAAAAAAAAAAA', ciphertext: 'AQ' },
+  };
+  const upload = () => handleRequest(request(`/api/reminders/${device.deviceId}`, {
+    method: 'PUT', headers: { authorization: `Bearer ${device.writeToken}` },
+    body: JSON.stringify({ schemaVersion: 1, updatedAt: '2026-09-29T12:00:00Z', jobs: [job] }),
+  }), env);
+  assert.equal((await upload()).status, 200);
+  await handleRequest(request(`/api/push-subscriptions/${device.deviceId}`, {
+    method: 'PUT', headers: { authorization: `Bearer ${device.readToken}` },
+    body: JSON.stringify({ endpoint: 'https://push.example.com/test', keys: { p256dh: 'A'.repeat(87), auth: 'B'.repeat(22) } }),
+  }), env);
+  await processDueReminders(env, Date.parse('2026-09-29T12:05:00Z'));
+  assert.equal(env.pushRequests.length, 0);
+  await processDueReminders(env, Date.parse('2026-09-29T12:10:00Z'));
+  assert.equal(env.pushRequests.length, 1);
+  await save(15);
+  await upload();
+  await processDueReminders(env, Date.parse('2026-09-29T12:15:00Z'));
+  assert.equal(env.pushRequests.length, 1);
+  const plan = JSON.parse(await env.MOBILE_SYNC_KV.get(`reminders:${device.deviceId}`));
+  assert.equal(plan.checkIntervalMinutes, 15);
+  assert.ok(plan.jobs[0].deliveries.webPush);
+  assert.equal(await env.MOBILE_SYNC_KV.get(`reminders:${other.deviceId}`), null);
+});
+
+test('提醒发送失败会在下个检查周期重试，过期事件不补发', async () => {
+  const env = environment();
+  const deviceId = 'example-device-123456';
+  const job = { id: 'retry', eventId: 'retry-event', offsetMinutes: 300,
+    dueAt: '2026-09-29T12:03:00Z', eventAt: '2026-09-29T17:03:00Z', payload: {} };
+  env.MOBILE_SYNC_KV.values.set(`reminders:${deviceId}`, JSON.stringify({ deviceId, checkIntervalMinutes: 10, jobs: [job] }));
+  env.MOBILE_SYNC_KV.values.set(`push:${deviceId}`, JSON.stringify({ endpoint: 'https://push.example.com/retry' }));
+  let attempts = 0;
+  env.PUSH_FETCH = async () => new Response(null, { status: ++attempts === 1 ? 503 : 201 });
+  await processDueReminders(env, Date.parse('2026-09-29T12:10:00Z'));
+  await processDueReminders(env, Date.parse('2026-09-29T12:20:00Z'));
+  await processDueReminders(env, Date.parse('2026-09-29T12:30:00Z'));
+  assert.equal(attempts, 2);
+  env.MOBILE_SYNC_KV.values.set(`reminders:${deviceId}`, JSON.stringify({ deviceId, checkIntervalMinutes: 10, jobs: [job] }));
+  await processDueReminders(env, Date.parse('2026-09-29T18:00:00Z'));
+  assert.equal(attempts, 2);
+});
 
 function environment() {
   const pushRequests = [];

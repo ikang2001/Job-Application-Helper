@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { normalizeMailScanMinutes } from '../shared/pollingIntervals.ts';
 import { filterRecruitmentHeader, classifyRecruitmentEmail } from '../../../src/services/mail/classifier.ts';
 import { extractRecruitmentData } from '../../../src/services/mail/extractor.ts';
 import type { NormalizedEmail } from '../../../src/services/mail/types.ts';
@@ -19,7 +20,6 @@ import {
   type DesktopNativeMailPort,
 } from './desktopNativeMailClient.ts';
 
-const SCAN_INTERVAL_MS = 15 * 60 * 1000;
 const INITIAL_SCAN_DELAY_MS = 2_000;
 const FIRST_SCAN_DAYS = 30;
 const PAGE_LIMIT = 40;
@@ -33,13 +33,22 @@ const SCHEDULED_REVIEW_STAGES = new Set<DesktopMailReviewStage>([
 export class DesktopMailInboxService {
   private initialTimer?: ReturnType<typeof setTimeout>;
   private interval?: ReturnType<typeof setInterval>;
+  private scanCallback?: () => void;
 
   constructor(private readonly client: DesktopNativeMailPort) {}
 
-  start(scan: () => void): void {
+  start(scan: () => void, intervalMinutes?: number): void {
     this.stop();
+    this.scanCallback = scan;
     this.initialTimer = setTimeout(scan, INITIAL_SCAN_DELAY_MS);
-    this.interval = setInterval(scan, SCAN_INTERVAL_MS);
+    this.setScanInterval(intervalMinutes);
+  }
+
+  setScanInterval(minutes?: number): void {
+    if (this.interval) clearInterval(this.interval);
+    this.interval = this.scanCallback
+      ? setInterval(this.scanCallback, normalizeMailScanMinutes(minutes) * 60_000)
+      : undefined;
   }
 
   stop(): void {
@@ -47,6 +56,7 @@ export class DesktopMailInboxService {
     if (this.interval) clearInterval(this.interval);
     this.initialTimer = undefined;
     this.interval = undefined;
+    this.scanCallback = undefined;
   }
 
   async scan(data: DesktopData): Promise<DesktopData> {
@@ -290,6 +300,10 @@ function enrichPendingReview(
     records,
   );
   const deadlineAt = review.deadlineAt ?? extracted.deadlineAt;
+  // 旧版曾把可作答窗口的起点当成开考时间；仅修正尚未确认的笔试候选。
+  const extractedAt = review.suggestedStage === 'writtenTest' && extracted.deadlineAt && !extracted.scheduledAt
+    ? undefined
+    : review.extractedAt;
   const companyName = match.recordIds.length ? match.companyName : review.companyName;
   const matchedRecordIds = match.recordIds.length ? match.recordIds : review.candidateRecordIds;
   const candidateRecordIds = sameStrings(matchedRecordIds, review.candidateRecordIds)
@@ -297,10 +311,11 @@ function enrichPendingReview(
     : matchedRecordIds;
   if (
     deadlineAt === review.deadlineAt
+    && extractedAt === review.extractedAt
     && companyName === review.companyName
     && candidateRecordIds === review.candidateRecordIds
   ) return review;
-  return { ...review, deadlineAt, companyName, candidateRecordIds };
+  return { ...review, extractedAt, deadlineAt, companyName, candidateRecordIds };
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

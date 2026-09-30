@@ -17,6 +17,31 @@ import type {
 import { desktopRecordInput, saveDesktopRecord } from '../domain/records.ts';
 import App from './App.tsx';
 import { MailInboxView } from './MailInboxView.tsx';
+import { PollingIntervalControl } from './PollingIntervalControl.tsx';
+
+test('间隔控件校验范围与步长，保存前不假显示生效', async () => {
+  const saved: number[] = [];
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<PollingIntervalControl label="测试间隔" minutes={5} min={5} max={60}
+      step={5} busy={false} hint="测试" onSave={value => saved.push(value)} />);
+  });
+  const input = () => renderer.root.findByType('input');
+  const button = () => renderer.root.findByType('button');
+  assert.equal(button().props.disabled, true);
+  for (const value of ['', '0', '6', '65', '10.5']) {
+    await act(async () => input().props.onChange({ target: { value } }));
+    assert.equal(button().props.disabled, true);
+    await act(async () => renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  }
+  assert.deepEqual(saved, []);
+  await act(async () => input().props.onChange({ target: { value: '20' } }));
+  assert.equal(button().props.disabled, false);
+  await act(async () => renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  assert.deepEqual(saved, [20]);
+  assert.match(JSON.stringify(renderer.toJSON()), /当前设置：.*5/);
+  await act(async () => renderer.unmount());
+});
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -86,6 +111,7 @@ function desktopApi(
     onStateChanged: () => () => {},
     saveRecord: async () => saveResult,
     deleteRecord: async () => ({ success: false, error: '未实现' }),
+    deleteRecords: async () => ({ success: false, error: '未实现' }),
     setRecordFavorite: async () => ({ success: false, error: '未实现' }),
     saveCareerFair: async () => ({ success: false, error: '未实现' }),
     deleteCareerFair: async () => ({ success: false, error: '未实现' }),
@@ -99,6 +125,8 @@ function desktopApi(
     resolveConflict: async () => ({ success: false, error: '未实现' }),
     setupMobileSync: async () => ({ success: false, error: '未实现' }),
     setMobileSyncEnabled: async () => ({ success: false, error: '未实现' }),
+    setMobileReminderInterval: async () => ({ success: false, error: '未实现' }),
+    setMailScanInterval: async () => ({ success: false, error: '未实现' }),
     setDesktopReminderEnabled: async () => ({ success: false, error: '未实现' }),
     syncMobileNow: async () => ({ success: false, error: '未实现' }),
     getMobilePairing: async () => ({ success: false, error: '未实现' }),
@@ -137,6 +165,71 @@ async function submitOpenForm(renderer: TestRenderer.ReactTestRenderer): Promise
     await Promise.resolve();
   });
 }
+
+test('列表单删可取消，批量删除失败保留勾选，成功只删所选岗位', async () => {
+  const previousWindow = globalThis.window;
+  const first = record();
+  const second = record({ companyName: '其他示例', sourceUrl: 'https://jobs.example.com/2' });
+  const api = desktopApi(state([first, second]), { success: false });
+  const calls: string[][] = [];
+  let allow = false;
+  let fail = true;
+  api.deleteRecord = async id => { calls.push([id]); return { success: true, data: state([second]) }; };
+  api.deleteRecords = async ids => {
+    calls.push(ids);
+    if (fail) throw new Error('测试删除失败');
+    return { success: true, data: state([second]) };
+  };
+  const renderer = await render(api);
+  window.confirm = () => allow;
+  try {
+    await act(async () => renderer.root.findByProps({ 'aria-label': `删除 ${first.companyName} ${first.jobTitle}` }).props.onClick({ stopPropagation() {} }));
+    assert.deepEqual(calls, []);
+    await act(async () => renderer.root.findByProps({ 'aria-label': `选择 ${first.companyName} ${first.jobTitle}` }).props.onChange({ target: { checked: true } }));
+    allow = true;
+    await act(async () => button(renderer, '批量删除（1）').props.onClick());
+    assert.match(text(renderer.root), /测试删除失败/);
+    assert.equal(button(renderer, '批量删除（1）').props.disabled, false);
+    fail = false;
+    await act(async () => button(renderer, '批量删除（1）').props.onClick());
+    assert.deepEqual(calls, [[first.id], [first.id]]);
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': `选择 ${first.companyName} ${first.jobTitle}` }).length, 0);
+    assert.equal(button(renderer, '批量删除（0）').props.disabled, true);
+  } finally {
+    await act(async () => renderer.unmount());
+    globalThis.window = previousWindow;
+  }
+});
+
+test('全选只选筛选结果，切换筛选清空选择，删除公司明确包含隐藏岗位', async () => {
+  const previousWindow = globalThis.window;
+  const first = record({ jobTitle: '前端工程师' });
+  const second = record({ jobTitle: '后端工程师', sourceUrl: 'https://jobs.example.com/2' });
+  const third = record({ companyName: '其他示例', sourceUrl: 'https://jobs.example.com/3' });
+  const api = desktopApi(state([first, second, third]), { success: false });
+  let deleted: string[] = [];
+  let message = '';
+  api.deleteRecords = async ids => { deleted = ids; return { success: true, data: state([third]) }; };
+  const renderer = await render(api);
+  window.confirm = value => { message = String(value); return true; };
+  const search = (value: string) => act(async () => renderer.root.findByProps({ 'aria-label': '搜索投递记录' }).props.onChange({ target: { value } }));
+  try {
+    await search('前端');
+    await act(async () => renderer.root.findByProps({ 'aria-label': '全选当前筛选结果' }).props.onChange({ target: { checked: true } }));
+    assert.equal(button(renderer, '批量删除（2）').props.disabled, false);
+    await search('后端');
+    assert.equal(button(renderer, '批量删除（0）').props.disabled, true);
+    await act(async () => button(renderer, '按公司查看').props.onClick());
+    await act(async () => renderer.root.findByProps({ 'aria-label': `删除公司 ${first.companyName}` }).props.onClick());
+    assert.deepEqual(deleted.sort(), [first.id, second.id].sort());
+    assert.match(message, /含当前筛选未显示的岗位/);
+    assert.match(message, /前端工程师/);
+    assert.match(message, /后端工程师/);
+  } finally {
+    await act(async () => renderer.unmount());
+    globalThis.window = previousWindow;
+  }
+});
 
 test('桌面端新建记录保存成功后返回列表', async () => {
   const originalWindow = globalThis.window;
@@ -424,6 +517,69 @@ test('后台补齐邮件截止时间后当前审核卡片立即刷新且不覆�
       renderer.update(renderView({ ...review, deadlineAt: '2026-09-16T13:29:00' }));
     });
     assert.equal(timeInput().props.value, '2026-09-15T20:00');
+  } finally {
+    await act(async () => renderer.unmount());
+  }
+});
+
+test('笔试窗口重新识别后同步刷新时间含义和日期，但保留人工修正', async () => {
+  const review: DesktopMailReview = {
+    id: 'window-review', accountId: 'example-account', messageId: 'window-message', from: 'hr@example.com',
+    subject: '示例科技笔试邀请', receivedAt: '2026-09-22T10:00:00Z', summary: '笔试有效期内自行完成',
+    category: 'assessment_invite', suggestedStage: 'writtenTest', candidateRecordIds: [], state: 'pending',
+    extractedAt: '2026-09-22T20:00:00',
+  };
+  const renderView = (nextReview: DesktopMailReview) => (
+    <MailInboxView inbox={{ status: 'idle', accounts: [], reviews: [nextReview], pendingCount: 1 }}
+      records={[]} busy={false} onScan={() => {}} onConfirm={() => {}} onIgnore={() => {}}
+      onIgnoreMany={() => {}} onOpenUrl={() => {}} />
+  );
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(renderView(review)); });
+  try {
+    const time = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 安排时间` });
+    const kind = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 时间含义` });
+    assert.equal(kind().props.value, 'start');
+    const corrected = { ...review, extractedAt: undefined, deadlineAt: '2026-09-28T12:00:00' };
+    await act(async () => { renderer.update(renderView(corrected)); });
+    assert.equal(kind().props.value, 'deadline');
+    assert.equal(time().props.value, '2026-09-28T12:00');
+    await act(async () => { kind().props.onChange({ target: { value: 'start' } }); });
+    await act(async () => { time().props.onChange({ target: { value: '2026-09-25T09:00' } }); });
+    await act(async () => { renderer.update(renderView({ ...corrected, deadlineAt: '2026-09-29T12:00:00' })); });
+    assert.equal(kind().props.value, 'start');
+    assert.equal(time().props.value, '2026-09-25T09:00');
+  } finally {
+    await act(async () => renderer.unmount());
+  }
+});
+
+test('AI面试补齐截止时间后顶部摘要和日期一致，人工修改不被覆盖', async () => {
+  const review: DesktopMailReview = {
+    id: 'ai-window', accountId: 'example-account', messageId: 'example-message', from: 'hr@example.com',
+    subject: '示例科技AI面试', receivedAt: '2026-09-28T01:36:01Z', summary: '请在指定时间内完成',
+    category: 'interview_invite', suggestedStage: 'ai', candidateRecordIds: [], state: 'pending',
+    extractedAt: '2026-09-28T09:35:00',
+  };
+  const renderView = (next: DesktopMailReview) => (
+    <MailInboxView inbox={{ status: 'idle', accounts: [], reviews: [next], pendingCount: 1 }}
+      records={[]} busy={false} onScan={() => {}} onConfirm={() => {}} onIgnore={() => {}}
+      onIgnoreMany={() => {}} onOpenUrl={() => {}} />
+  );
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(renderView(review)); });
+  try {
+    const time = () => renderer.root.findByProps({ 'aria-label': `${review.subject} 安排时间` });
+    const corrected = { ...review, deadlineAt: '2026-10-01T09:35:00' };
+    await act(async () => { renderer.update(renderView(corrected)); });
+    assert.equal(renderer.root.findByProps({ 'aria-label': `${review.subject} 时间含义` }).props.value, 'deadline');
+    assert.equal(time().props.value, '2026-10-01T09:35');
+    const label = renderer.root.findAllByType('strong').find(item => item.children.includes('识别时间'));
+    assert.ok(label);
+    assert.match(JSON.stringify(label.parent?.children.filter(item => typeof item === 'string')), /2026\/10\/1/);
+    await act(async () => { time().props.onChange({ target: { value: '2026-09-30T12:00' } }); });
+    await act(async () => { renderer.update(renderView({ ...corrected, deadlineAt: '2026-10-02T09:35:00' })); });
+    assert.equal(time().props.value, '2026-09-30T12:00');
   } finally {
     await act(async () => renderer.unmount());
   }

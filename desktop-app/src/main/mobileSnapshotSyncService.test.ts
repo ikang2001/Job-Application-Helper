@@ -10,6 +10,46 @@ import { MobileSnapshotSyncService } from './mobileSnapshotSyncService.ts';
 
 const NOW = '2026-09-09T12:00:00.000Z';
 
+test('检查间隔仅在云端确认后保存，重启保留且不改配对和业务数据', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'job-helper-interval-'));
+  const file = join(directory, 'desktop-data.json');
+  const store = new DesktopStore(file);
+  let response = Response.json({ checkIntervalMinutes: 20 });
+  const fetcher: typeof fetch = async (_url, init) => {
+    assert.equal(init?.method, 'PUT');
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer example-write-token');
+    assert.deepEqual(JSON.parse(String(init?.body)), { checkIntervalMinutes: 20 });
+    return response;
+  };
+  const service = new MobileSnapshotSyncService(store, new PlainTestCodec(), fetcher);
+  try {
+    const initial = await store.read();
+    assert.equal(initial.mailScanIntervalMinutes, 15);
+    initial.mobileSync = {
+      enabled: false, serverUrl: 'https://mobile.example.com', deviceId: 'example-device-123456',
+      encryptedWriteToken: 'example-write-token', encryptedReadToken: 'example-read-token',
+      encryptedPairingKey: 'example-key',
+    };
+    initial.mailScanIntervalMinutes = 7;
+    await store.write(initial);
+    const updated = await service.setReminderInterval(initial, 20);
+    assert.deepEqual(updated, { ...initial, mobileSync: { ...initial.mobileSync, reminderCheckIntervalMinutes: 20 } });
+    const restarted = await new DesktopStore(file).read();
+    assert.equal(restarted.mailScanIntervalMinutes, 7);
+    assert.equal(restarted.mobileSync?.reminderCheckIntervalMinutes, 20);
+    for (const failure of [new Response('', { status: 404 }), Response.json({ ok: true }), new Response('', { status: 503 })]) {
+      response = failure;
+      await assert.rejects(service.setReminderInterval(restarted, 20));
+      assert.deepEqual(await store.read(), restarted);
+    }
+    for (const invalid of [0, 6, 65, NaN, 5.5]) await assert.rejects(service.setReminderInterval(restarted, invalid));
+    await store.write({ ...restarted, mailScanIntervalMinutes: 0 });
+    assert.equal((await store.read()).mailScanIntervalMinutes, 15);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 class PlainTestCodec implements SecretCodec {
   encrypt(value: string): string { return value; }
   decrypt(value: string): string { return value; }

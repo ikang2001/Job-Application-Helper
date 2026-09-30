@@ -6,6 +6,8 @@ import type {
   DesktopMobileSyncState,
 } from '../shared/contracts.ts';
 import { CloseIcon } from './Icons.tsx';
+import { PollingIntervalControl } from './PollingIntervalControl.tsx';
+import { normalizeReminderCheckMinutes, DEFAULT_REMINDER_CHECK_MINUTES, MAX_REMINDER_CHECK_MINUTES } from '../shared/pollingIntervals.ts';
 
 interface MobileSyncPanelProps {
   current: DesktopMobileSyncState;
@@ -14,6 +16,7 @@ interface MobileSyncPanelProps {
   onSetup(input: DesktopMobileSyncSetupInput): void;
   onSetEnabled(enabled: boolean): void;
   onSync(): void;
+  onSetReminderInterval?(minutes: number): void;
 }
 
 export function MobileSyncPanel(props: MobileSyncPanelProps) {
@@ -122,6 +125,13 @@ export function MobileSyncPanel(props: MobileSyncPanelProps) {
               <span>不会包含：简历、身份证、API Key、邮箱密码、邮件正文</span>
             </div>
             <div className="remote-path"><span>同步服务</span><code>{props.current.serverUrl}</code></div>
+            {props.onSetReminderInterval && <PollingIntervalControl
+              label="云端提醒检查间隔"
+              minutes={normalizeReminderCheckMinutes(props.current.reminderCheckIntervalMinutes)}
+              min={DEFAULT_REMINDER_CHECK_MINUTES} max={MAX_REMINDER_CHECK_MINUTES} step={5}
+              busy={props.busy} onSave={props.onSetReminderInterval}
+              hint="推荐 5 分钟。保存成功后云端生效，电脑关机也有效；不改变提前 24 小时／5 小时提醒规则，通知可能延后一个检查间隔。暂停快照同步不暂停云端提醒。"
+            />}
             <footer className="panel-actions settings-actions mobile-actions">
               <button type="button" className="button-secondary" onClick={() => setShowSetup(true)} disabled={props.busy}>更换服务</button>
               <button type="button" className="button-secondary" onClick={() => props.onSetEnabled(!props.current.enabled)} disabled={props.busy}>{props.current.enabled ? '暂停自动同步' : '恢复自动同步'}</button>

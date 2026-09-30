@@ -6,6 +6,40 @@ import test from 'node:test';
 import { LocalApplicationRecordsStore } from '../../../native-mail-companion/src/localRecordsStore.ts';
 import type { ApplicationRecord } from '../../../src/shared/types.ts';
 import { DesktopLocalSyncService } from './desktopLocalSyncService.ts';
+import { DesktopController } from './desktopController.ts';
+import { DesktopStore } from './desktopStore.ts';
+import { DesktopSyncService } from './desktopSyncService.ts';
+import { MobileSnapshotSyncService } from './mobileSnapshotSyncService.ts';
+import { DesktopMailInboxService } from './desktopMailInboxService.ts';
+import { DesktopNativeMailClient } from './desktopNativeMailClient.ts';
+
+test('批量删除一次同步全部墓碑，保留未选记录及邮箱配置，刷新不复活', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'jah-batch-delete-'));
+  try {
+    const store = new DesktopStore(join(directory, 'desktop.json'));
+    const shared = new LocalApplicationRecordsStore(join(directory, 'shared.json'));
+    const codec = { encrypt: (value: string) => value, decrypt: (value: string) => value };
+    const controller = new DesktopController(store, new DesktopSyncService(store, codec),
+      new DesktopLocalSyncService(shared), new MobileSnapshotSyncService(store, codec), new DesktopMailInboxService(new DesktopNativeMailClient(directory)));
+    const initial = { ...await store.read(), records: ['one', 'two', 'three'].map(id => record(id, '2026-09-04T01:00:00.000Z')),
+      favoriteRecordIds: ['one', 'three'], mailScanIntervalMinutes: 7 };
+    await store.write(initial);
+    await shared.merge({ writer: 'edge', records: initial.records });
+    const before = await store.read();
+    await assert.rejects(controller.deleteRecords(['one', '']));
+    assert.deepEqual(await store.read(), before);
+    const result = await controller.deleteRecords(['one', 'two', 'one']);
+    assert.deepEqual(result.records.map(item => item.id), ['three']);
+    assert.deepEqual(result.favoriteRecordIds, ['three']);
+    assert.equal((await store.read()).mailScanIntervalMinutes, 7);
+    assert.deepEqual((await shared.read()).tombstones.map(item => item.id).sort(), ['one', 'two']);
+    assert.deepEqual((await controller.getState()).records.map(item => item.id), ['three']);
+    await controller.deleteRecord('three');
+    assert.equal((await controller.getState()).records.length, 0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 function record(id: string, updatedAt: string): ApplicationRecord {
   return {

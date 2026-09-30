@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ApplicationRecord } from '../../../src/shared/types.ts';
 import { DESKTOP_MAIL_REVIEW_STAGES } from '../domain/desktopMail.ts';
 import type {
@@ -8,12 +8,15 @@ import type {
   DesktopMailReviewStage,
 } from '../shared/contracts.ts';
 import { ExternalIcon, SearchIcon, SyncIcon } from './Icons.tsx';
+import { PollingIntervalControl } from './PollingIntervalControl.tsx';
+import { normalizeMailScanMinutes, MAX_MAIL_SCAN_MINUTES } from '../shared/pollingIntervals.ts';
 
 interface MailInboxViewProps {
   inbox: DesktopMailInboxState;
   records: ApplicationRecord[];
   busy: boolean;
   onScan(): void;
+  onSetScanInterval?(minutes: number): void;
   onConfirm(input: DesktopMailReviewDecisionInput): void;
   onIgnore(reviewId: string): void;
   onIgnoreMany(reviewIds: string[]): void;
@@ -67,6 +70,12 @@ export function MailInboxView(props: MailInboxViewProps) {
         <div><strong>{connectionTitle(props.inbox)}</strong><small>{connectionDetail(props.inbox)}</small></div>
         <div className="mail-account-pills">{props.inbox.accounts.map(account => <span key={account.id} className={account.connection === 'error' ? 'is-error' : ''}>{account.emailAddress}</span>)}</div>
       </section>
+
+      {props.onSetScanInterval && <PollingIntervalControl
+        label="招聘邮箱自动扫描间隔" minutes={normalizeMailScanMinutes(props.inbox.scanIntervalMinutes)}
+        min={1} max={MAX_MAIL_SCAN_MINUTES} step={1} busy={props.busy} onSave={props.onSetScanInterval}
+        hint="保存后立即调整自动扫描周期，重启后保留。仅桌面端运行时自动扫描；手动“扫描邮箱”不受影响。频繁扫描可能受到邮箱服务商限制。"
+      />}
 
       <div className="records-toolbar mail-toolbar">
         <label className="search-field"><SearchIcon /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索公司、主题、发件人或邮件摘要…" aria-label="搜索招聘邮件" /></label>
@@ -151,6 +160,7 @@ function MailReviewCard(props: {
   );
   const [actionUrl, setActionUrl] = useState(props.review.actionUrl ?? '');
   const [notes, setNotes] = useState('');
+  const scheduleEdited = useRef(false);
   const selectedRecord = props.records.find(record => record.id === props.review.selectedRecordId);
   const selectedStage = DESKTOP_MAIL_REVIEW_STAGES.find(item => item.value === props.review.selectedStage)?.label;
   const suggested = DESKTOP_MAIL_REVIEW_STAGES.find(item => item.value === props.review.suggestedStage)?.label;
@@ -168,9 +178,11 @@ function MailReviewCard(props: {
   }, [recordCandidates]);
 
   useEffect(() => {
-    const suggestedTime = reviewTimeValue(props.review, scheduleType);
-    if (suggestedTime) setScheduledAt(current => current || suggestedTime);
-  }, [props.review.deadlineAt, props.review.extractedAt, scheduleType]);
+    if (scheduleEdited.current) return;
+    const nextType = defaultReviewScheduleType(props.review, stage || props.review.suggestedStage);
+    setScheduleType(nextType);
+    setScheduledAt(reviewTimeValue(props.review, nextType));
+  }, [props.review.deadlineAt, props.review.extractedAt, props.review.suggestedStage, stage]);
 
   return (
     <article className={`mail-review-card state-${props.review.state}`}>
@@ -196,7 +208,7 @@ function MailReviewCard(props: {
       <div className="mail-review-facts">
         <span><strong>公司匹配</strong>{props.review.companyName ? `${props.review.companyName} · ${props.review.candidateRecordIds.length} 个投递岗位` : '未匹配，请人工选择'}</span>
         <span><strong>系统建议</strong>{suggested || '无法确定，请人工判断'}</span>
-        {(props.review.extractedAt || props.review.deadlineAt) && <span><strong>识别时间</strong>{formatDateTime(props.review.extractedAt || props.review.deadlineAt || '')}</span>}
+        {(props.review.extractedAt || props.review.deadlineAt) && <span><strong>识别时间</strong>{formatDateTime(reviewTimeValue(props.review, scheduleType))}</span>}
       </div>
       {props.review.actionUrl && <button type="button" className="mail-action-link" onClick={() => props.onOpenUrl(props.review.actionUrl!)}>打开邮件中的链接 <ExternalIcon /></button>}
 
@@ -224,6 +236,7 @@ function MailReviewCard(props: {
           </div>
           <label><span>邮件阶段（系统已预选，请确认）</span><select aria-label={`${props.review.subject} 邮件阶段`} value={stage} onChange={event => {
             const nextStage = event.target.value as DesktopMailReviewStage | '';
+            scheduleEdited.current = false;
             const nextType = defaultReviewScheduleType(props.review, nextStage || props.review.suggestedStage);
             setStage(nextStage);
             setScheduleType(nextType);
@@ -236,6 +249,7 @@ function MailReviewCard(props: {
               value={scheduleType}
               disabled={Boolean(stage) && !isScheduledReviewStage(stage)}
               onChange={event => {
+                scheduleEdited.current = true;
                 const nextType = event.target.value as 'start' | 'deadline';
                 setScheduleType(nextType);
                 setScheduledAt(reviewTimeValue(props.review, nextType));
@@ -251,7 +265,10 @@ function MailReviewCard(props: {
               type="datetime-local"
               aria-label={`${props.review.subject} 安排时间`}
               value={scheduledAt}
-              onChange={event => setScheduledAt(event.target.value)}
+              onChange={event => {
+                scheduleEdited.current = true;
+                setScheduledAt(event.target.value);
+              }}
             />
             <small className={scheduledAt ? 'mail-time-hint' : 'mail-time-hint is-missing'}>
               {scheduledAt ? '已按邮件内容预填，请核对后确认' : '未识别到时间，请根据邮件补充'}

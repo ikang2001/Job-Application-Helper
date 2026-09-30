@@ -16,6 +16,7 @@ import type {
   StoredMobileSyncSettings,
 } from './desktopStore.ts';
 import { DesktopStore } from './desktopStore.ts';
+import { isReminderCheckMinutes, normalizeReminderCheckMinutes } from '../shared/pollingIntervals.ts';
 
 const UPLOAD_DELAY_MS = 400;
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -93,6 +94,7 @@ export class MobileSnapshotSyncService {
         status: 'disabled',
         lastSyncedAt: this.status.lastSyncedAt,
         revision: this.status.revision,
+        reminderCheckIntervalMinutes: normalizeReminderCheckMinutes(settings.reminderCheckIntervalMinutes),
       };
     }
     return {
@@ -101,6 +103,7 @@ export class MobileSnapshotSyncService {
       enabled: true,
       serverUrl: settings.serverUrl,
       status: this.status.status === 'disabled' ? 'idle' : this.status.status,
+      reminderCheckIntervalMinutes: normalizeReminderCheckMinutes(settings.reminderCheckIntervalMinutes),
     };
   }
 
@@ -126,6 +129,30 @@ export class MobileSnapshotSyncService {
       serverUrl,
       status: 'idle',
     });
+    return next;
+  }
+
+  async setReminderInterval(data: DesktopData, minutes: number): Promise<DesktopData> {
+    if (!isReminderCheckMinutes(minutes)) throw new Error('云端提醒检查间隔须为 5～60 分钟，且是 5 的倍数');
+    if (!data.mobileSync) throw new Error('请先建立手机安全配对');
+    const settings = data.mobileSync;
+    const response = await fetchWithTimeout(this.fetcher,
+      `${settings.serverUrl}/api/reminder-settings/${encodeURIComponent(settings.deviceId)}`, {
+        method: 'PUT', redirect: 'error',
+        headers: {
+          authorization: `Bearer ${this.secrets.decrypt(settings.encryptedWriteToken)}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ checkIntervalMinutes: minutes }),
+      });
+    if (response.status === 404 || response.status === 405) {
+      throw new Error('当前云端服务不支持检查间隔设置，请先更新 Cloudflare Worker');
+    }
+    if (!response.ok) throw new Error(await responseError(response, '云端提醒间隔保存失败'));
+    const result = JSON.parse(await readBoundedText(response)) as { checkIntervalMinutes?: unknown };
+    if (result.checkIntervalMinutes !== minutes) throw new Error('云端未确认新的提醒检查间隔，请更新服务后重试');
+    const next = { ...data, mobileSync: { ...settings, reminderCheckIntervalMinutes: minutes } };
+    await this.store.write(next);
     return next;
   }
 

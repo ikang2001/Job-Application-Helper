@@ -170,6 +170,24 @@ test('人工确认时把只有日期的截止时间转换为桌面安排时间',
   assert.match(result.records[0]?.notes ?? '', /测评截止/);
 });
 
+test('笔试候选有固定开考时间时用开始时间，否则用截止时间', () => {
+  const target = record('示例科技', '示例岗位', 'https://jobs.example.com/test');
+  for (const fixedStart of [undefined, '2026-09-22T20:00:00']) {
+    const pending = review({
+      suggestedStage: 'writtenTest',
+      extractedAt: fixedStart,
+      deadlineAt: '2026-09-28T12:00:00',
+      candidateRecordIds: [target.id],
+    });
+    const result = confirmDesktopMailReview([target], [pending], {
+      reviewId: pending.id, recordId: target.id, stage: 'writtenTest',
+    });
+    assert.equal(result.records[0]?.recruitmentSchedule?.writtenTest?.timeKind, fixedStart ? 'start' : 'deadline');
+    assert.equal(result.records[0]?.recruitmentSchedule?.writtenTest?.scheduledAt,
+      fixedStart ? '2026-09-22T20:00' : '2026-09-28T12:00');
+  }
+});
+
 test('人工审核可修正时间含义、链接并追加截止提示和补充说明', () => {
   const target = record('新辰集团', '模型算法工程师', 'https://jobs.example.com/newstar');
   const pending = review({

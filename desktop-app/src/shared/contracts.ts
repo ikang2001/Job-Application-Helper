@@ -9,6 +9,7 @@ export const DESKTOP_CHANNELS = {
   stateChanged: 'desktop:state-changed',
   saveRecord: 'desktop:save-record',
   deleteRecord: 'desktop:delete-record',
+  deleteRecords: 'desktop:delete-records',
   setRecordFavorite: 'desktop:set-record-favorite',
   saveCareerFair: 'desktop:save-career-fair',
   deleteCareerFair: 'desktop:delete-career-fair',
@@ -22,6 +23,8 @@ export const DESKTOP_CHANNELS = {
   resolveConflict: 'desktop:resolve-conflict',
   setupMobileSync: 'desktop:setup-mobile-sync',
   setMobileSyncEnabled: 'desktop:set-mobile-sync-enabled',
+  setMobileReminderInterval: 'desktop:set-mobile-reminder-interval',
+  setMailScanInterval: 'desktop:set-mail-scan-interval',
   setDesktopReminderEnabled: 'desktop:set-desktop-reminder-enabled',
   syncMobileNow: 'desktop:sync-mobile-now',
   getMobilePairing: 'desktop:get-mobile-pairing',
@@ -108,6 +111,7 @@ export interface DesktopLocalSyncState {
 export type DesktopMobileSyncStatus = 'disabled' | 'idle' | 'syncing' | 'synced' | 'error';
 
 export interface DesktopMobileSyncState {
+  reminderCheckIntervalMinutes?: number;
   configured: boolean;
   enabled: boolean;
   serverUrl: string;
@@ -178,6 +182,7 @@ export interface DesktopMailReview {
 }
 
 export interface DesktopMailInboxState {
+  scanIntervalMinutes?: number;
   status: DesktopMailInboxStatus;
   accounts: DesktopMailAccountState[];
   reviews: DesktopMailReview[];
@@ -271,6 +276,7 @@ export interface DesktopApi {
   onStateChanged(listener: (state: DesktopState) => void): () => void;
   saveRecord(input: DesktopRecordInput): Promise<DesktopResult<DesktopRecordSaveResult>>;
   deleteRecord(id: string): Promise<DesktopResult<DesktopState>>;
+  deleteRecords(ids: string[]): Promise<DesktopResult<DesktopState>>;
   setRecordFavorite(input: DesktopRecordFavoriteInput): Promise<DesktopResult<DesktopState>>;
   saveCareerFair(input: DesktopCareerFairInput): Promise<DesktopResult<DesktopCareerFairSaveResult>>;
   deleteCareerFair(id: string): Promise<DesktopResult<DesktopState>>;
@@ -284,6 +290,8 @@ export interface DesktopApi {
   resolveConflict(choice: 'local' | 'remote'): Promise<DesktopResult<DesktopState>>;
   setupMobileSync(input: DesktopMobileSyncSetupInput): Promise<DesktopResult<DesktopState>>;
   setMobileSyncEnabled(enabled: boolean): Promise<DesktopResult<DesktopState>>;
+  setMobileReminderInterval(minutes: number): Promise<DesktopResult<DesktopState>>;
+  setMailScanInterval(minutes: number): Promise<DesktopResult<DesktopState>>;
   setDesktopReminderEnabled(enabled: boolean): Promise<DesktopResult<DesktopState>>;
   syncMobileNow(): Promise<DesktopResult<DesktopState>>;
   getMobilePairing(): Promise<DesktopResult<DesktopMobilePairingInfo>>;

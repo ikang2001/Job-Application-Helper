@@ -10,7 +10,7 @@
     "VAPID_SERVER_PUBLIC_KEY": "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY"
   },
   "triggers": {
-    "crons": ["* * * * *"]
+    "crons": ["*/5 * * * *"]
   },
   "routes": [
     {

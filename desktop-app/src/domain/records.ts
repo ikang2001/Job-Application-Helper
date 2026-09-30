@@ -245,9 +245,18 @@ export function deleteDesktopRecord(
   recordsInput: readonly ApplicationRecord[],
   id: string,
 ): ApplicationRecord[] {
-  const normalizedId = id.trim();
-  if (!normalizedId) throw new Error('投递记录 ID 不能为空');
-  return normalizeApplicationRecords(recordsInput).filter(record => record.id !== normalizedId);
+  return deleteDesktopRecords(recordsInput, [id]);
+}
+
+export function deleteDesktopRecords(
+  recordsInput: readonly ApplicationRecord[],
+  ids: readonly string[],
+): ApplicationRecord[] {
+  if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string' || !id.trim())) {
+    throw new Error('请选择要删除的投递记录，记录 ID 不能为空');
+  }
+  const deletedIds = new Set(ids.map(id => id.trim()));
+  return normalizeApplicationRecords(recordsInput).filter(record => !deletedIds.has(record.id));
 }
 
 function isDesktopExport(value: unknown): value is DesktopExportDocument {

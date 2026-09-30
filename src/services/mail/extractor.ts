@@ -36,9 +36,15 @@ export function extractRecruitmentData(email: NormalizedEmail): ExtractedRecruit
     /(?:application|candidate)\s*(?:id|number|no\.?|#)\s*[:：#-]?\s*([A-Z0-9][A-Z0-9._/-]{1,80})/i,
     /(?:申请|应聘)(?:编号|ID)\s*[:：#-]?\s*([A-Z0-9][A-Z0-9._/-]{1,80})/i,
   ]);
-  const scheduledAt = extractLabeledDate(text, /笔试|考试(?:开始)?时间|测评(?:开始)?时间|开始时间/i);
+  const windowDeadline = extractWindowDeadline(text);
+  const deadlineAt = windowDeadline ?? extractDeadline(text, email.receivedAt);
+  // 有效作答窗口不是固定开考安排；只有明确的开考标签才能覆盖截止提醒。
+  const fixedStart = extractLabeledDate(text, /(?:统一|固定)?开考时间|(?:统一|固定)开始时间|(?:笔试|考试)开始时间/i);
+  const scheduledAt = fixedStart ?? (windowDeadline ? undefined
+    : extractLabeledDate(text, deadlineAt
+      ? /开考时间|开始时间|(?:笔试|考试)时间/i
+      : /笔试|考试(?:开始)?时间|测评(?:开始)?时间|开始时间/i));
   const interviewAt = extractLabeledDate(text, /interview|面试|面谈/i);
-  const deadlineAt = extractDeadline(text, email.receivedAt);
   const meetingUrl = extractMeetingUrl(text);
   const summary = compact(text).slice(0, 500) || undefined;
 
@@ -106,8 +112,27 @@ function companyFromSender(address: string): string | undefined {
   return candidate.replace(/[-_]+/g, ' ');
 }
 
+const dateSource = '(\\d{4})[-/.年](\\d{1,2})[-/.月](\\d{1,2})(?:日)?(?:\\s*(?:周|星期)[一二三四五六日天])?(?:[ T，,]*(\\d{1,2})[:：](\\d{2})(?::\\d{2})?)?';
+
+function extractWindowDeadline(text: string): string | undefined {
+  const range = new RegExp(`${dateSource}\\s*(?:[-—–~～至到]+)\\s*${dateSource}`, 'g');
+  const selfPacedAiInterview = /(?:AI|人工智能|智能)\s*面试/i.test(text)
+    && /(?:指定|规定)时间内[^。；\n]{0,20}完成/.test(text);
+  for (const match of text.matchAll(range)) {
+    const context = text.slice(Math.max(0, match.index - 40), match.index + match[0].length + 60);
+    const prefix = text.slice(Math.max(0, match.index - 80), match.index);
+    // AI面试可能只标“面试时间”，作答说明与时间字段相距较远。
+    const aiWindow = selfPacedAiInterview && /面试时间\s*[:：]?\s*(?:[（(][^）)\n]{0,50}[）)]\s*)?$/.test(prefix);
+    // 不凭区间长短推断：固定场次也可能写成“19:00—21:00”。
+    if (!aiWindow && !/有效期|有效时间|作答窗口|开放时间|任选|自行安排|自由安排|合理安排|尽快作答/.test(context)) continue;
+    const start = dateFromMatch(match);
+    const end = dateFromMatch([match[0], ...match.slice(6)]);
+    if (start && end && end > start) return end;
+  }
+  return undefined;
+}
+
 function extractLabeledDate(text: string, label: RegExp): string | undefined {
-  const dateSource = '(\\d{4})[-/.年](\\d{1,2})[-/.月](\\d{1,2})(?:日)?(?:\\s*(?:周|星期)[一二三四五六日天])?(?:[ T，,]*(\\d{1,2})[:：](\\d{2})(?::\\d{2})?)?';
   const forward = new RegExp(`(?:${label.source})[^\\n\\r]{0,100}?${dateSource}`, label.flags);
   const match = text.match(forward);
   return match ? dateFromMatch(match) : undefined;
@@ -121,8 +146,7 @@ function extractDeadline(text: string, receivedAt: string): string | undefined {
 }
 
 function extractDateBeforeLabel(text: string, label: RegExp): string | undefined {
-  const dateSource = '(\\d{4})[-/.年](\\d{1,2})[-/.月](\\d{1,2})(?:日)?(?:\\s*(?:周|星期)[一二三四五六日天])?(?:[ T，,]*(\\d{1,2})[:：](\\d{2})(?::\\d{2})?)?';
-  const reverse = new RegExp(`${dateSource}[^\\d\\n\\r]{0,24}(?:${label.source})`, label.flags);
+  const reverse = new RegExp(`${dateSource}[^\\d\\n\\r。；;]{0,24}(?:${label.source})`, label.flags);
   const match = text.match(reverse);
   return match ? dateFromMatch(match) : undefined;
 }
