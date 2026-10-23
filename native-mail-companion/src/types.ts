@@ -61,6 +61,7 @@ export type NativeMailRequest =
   | { protocolVersion: 1; requestId: string; type: 'SET_CREDENTIAL'; accountId: string; credential: string }
   | { protocolVersion: 1; requestId: string; type: 'DELETE_ACCOUNT'; accountId: string }
   | { protocolVersion: 1; requestId: string; type: 'TEST_CONNECTION'; accountId: string }
+  | { protocolVersion: 1; requestId: string; type: 'BEGIN_SESSION' | 'END_SESSION'; accountId: string }
   | {
       protocolVersion: 1;
       requestId: string;
@@ -78,6 +79,8 @@ export type NativeMailErrorCode =
   | 'ACCOUNT_NOT_FOUND'
   | 'CREDENTIAL_NOT_FOUND'
   | 'AUTH_FAILED'
+  | 'RATE_LIMITED'
+  | 'ACCOUNT_BUSY'
   | 'CONNECTION_FAILED'
   | 'TIMEOUT'
   | 'MESSAGE_NOT_FOUND'
@@ -94,6 +97,7 @@ export interface NativeMailResponse<T = unknown> {
     code: NativeMailErrorCode;
     message: string;
     retryable: boolean;
+    retryAt?: string;
   };
 }
 

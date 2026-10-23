@@ -104,6 +104,51 @@ test('高置信度邮件自动追加幂等事件并在成功后推进 cursor', a
   }
 });
 
+const sampleEmail: NormalizedEmail = {
+  id: 'sample-mail', accountId: 'gmail-1', provider: 'gmail',
+  from: { address: 'hr@acme.com' }, to: ['candidate@example.com'],
+  subject: 'Interview invitation - Software Engineer', receivedAt: '2026-09-01T08:00:00Z',
+  text: 'Company: Acme Inc.\nPosition: Software Engineer\n请参加面试，时间2026-09-10 14:30',
+};
+
+test('插件连续点击合并，扫描结束关闭会话，重复审核邮件不重新下载正文', async () => {
+  const storage = installChromeStorage([{ ...baseRecord(), companyName: 'Acme Inc' }]);
+  const harness = createHarness(sampleEmail);
+  const provider = harness.dependencies.createProvider(harness.account, harness.dependencies.tokenProvider);
+  let begins = 0; let ends = 0; let bodies = 0;
+  provider.beginScan = async () => { begins++; };
+  provider.endScan = async () => { ends++; };
+  provider.getMessage = async () => { bodies++; return sampleEmail; };
+  try {
+    await Promise.all([handleSyncMail(undefined, harness.dependencies), handleSyncMail(undefined, harness.dependencies)]);
+    assert.equal(begins, 1); assert.equal(ends, 1); assert.equal(bodies, 1);
+    await handleSyncMail(undefined, harness.dependencies);
+    assert.equal(bodies, 1, '已在待审核列表的正文不重复下载');
+    assert.equal((harness.state[PENDING_MAIL_REVIEWS_STORAGE_KEY] as unknown[]).length, 1);
+  } finally { storage.restore(); }
+});
+
+test('插件第二页失败保留已保存页面和游标，不改写原有投递数据', async () => {
+  const storage = installChromeStorage([{ ...baseRecord(), companyName: 'Acme Inc' }]);
+  const harness = createHarness(sampleEmail);
+  const provider = harness.dependencies.createProvider(harness.account, harness.dependencies.tokenProvider);
+  let pages = 0;
+  provider.listHeaders = async () => {
+    if (++pages > 1) throw new MailProviderError({ code: 'RATE_LIMITED', provider: 'gmail', message: '等待自动重试', retryAt: '2026-10-23T08:00:00Z' });
+    return { items: [{ ...sampleEmail, from: sampleEmail.from.address }], nextCursor: 'completed-page-1' };
+  };
+  const before = structuredClone(storage.values.applicationRecords);
+  try {
+    await handleSyncMail(undefined, harness.dependencies);
+    const accounts = harness.state[MAIL_ACCOUNTS_STORAGE_KEY] as MailAccount[];
+    assert.equal(accounts[0]?.cursor, 'completed-page-1');
+    assert.equal(accounts[0]?.retryAt, '2026-10-23T08:00:00Z');
+    assert.notEqual(accounts[0]?.connectionState, 'needs-authorization');
+    assert.equal((harness.state[PENDING_MAIL_REVIEWS_STORAGE_KEY] as unknown[]).length, 1);
+    assert.deepEqual(storage.values.applicationRecords, before);
+  } finally { storage.restore(); }
+});
+
 test('中等匹配保存最小待确认项并可人工关联', async () => {
   const chromeStorage = installChromeStorage([{ ...baseRecord(), companyName: 'Acme Inc' }]);
   const email: NormalizedEmail = {

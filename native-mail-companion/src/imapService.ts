@@ -6,10 +6,12 @@ import {
   type ImapCursor,
   type ListMessagesResult,
   type NativeMailAccountConfig,
-  type NativeMailErrorCode,
   type NativeMailHeader,
   type NativeNormalizedEmail,
 } from './types.js';
+import { NativeMailServiceError, normalizeImapError } from './mailErrors.js';
+import type { MailLease, MailRuntime } from './mailRuntime.js';
+export { NativeMailServiceError } from './mailErrors.js';
 
 const UID_RECHECK_WINDOW = 50;
 
@@ -49,6 +51,7 @@ export interface ImapClientPort {
   mailbox: MailboxLike | false;
   connect(): Promise<void>;
   logout(): Promise<void>;
+  close?(): void;
   getMailboxLock(path: string): Promise<MailboxLockLike>;
   search(query: { since?: Date; uid?: string }, options: { uid: true }): Promise<number[]>;
   fetchAll(
@@ -74,19 +77,62 @@ export type ImapClientFactory = (
   credential: string,
 ) => ImapClientPort;
 
-export class NativeMailServiceError extends Error {
-  constructor(
-    readonly code: NativeMailErrorCode,
-    message: string,
-    readonly retryable: boolean,
-  ) {
-    super(message);
-    this.name = 'NativeMailServiceError';
-  }
-}
-
 export class ImapMailService {
-  constructor(private readonly createClient: ImapClientFactory = createImapClient) {}
+  private readonly sessions = new Map<string, { client: ImapClientPort; lease?: MailLease }>();
+  private readonly failedSessions = new Map<string, NativeMailServiceError>();
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly createClient: ImapClientFactory = createImapClient,
+    private readonly runtime?: MailRuntime,
+  ) {}
+
+  beginSession(account: NativeMailAccountConfig, credential: string): Promise<void> {
+    return this.serialize(async () => {
+      if (this.sessions.has(account.id)) return;
+      this.failedSessions.delete(account.id);
+      const lease = await this.runtime?.acquire(account);
+      const client = this.createClient(account, credential);
+      try {
+        await client.connect();
+        this.sessions.set(account.id, { client, lease });
+      } catch (error) {
+        client.close?.();
+        try { throw await this.connectionError(error, lease); }
+        finally { await lease?.release(); }
+      }
+    });
+  }
+
+  endSession(accountId: string): Promise<void> {
+    return this.serialize(async () => { this.failedSessions.delete(accountId); await this.releaseSession(accountId); });
+  }
+
+  async close(): Promise<void> {
+    await this.serialize(async () => {
+      for (const accountId of this.sessions.keys()) await this.releaseSession(accountId);
+    });
+  }
+
+  private serialize<T>(operation: () => Promise<T>): Promise<T> {
+    const task = this.queue.then(operation);
+    this.queue = task.catch(() => undefined);
+    return task;
+  }
+
+  private async releaseSession(accountId: string): Promise<void> {
+    const session = this.sessions.get(accountId);
+    if (!session) return;
+    this.sessions.delete(accountId);
+    try { await session.client.logout(); }
+    catch { session.client.close?.(); }
+    finally { await session.lease?.release(); }
+  }
+
+  private async connectionError(error: unknown, lease?: MailLease): Promise<NativeMailServiceError> {
+    const normalized = normalizeImapError(error);
+    return normalized.code === 'RATE_LIMITED' && lease ? lease.limited() : normalized;
+  }
 
   async testConnection(account: NativeMailAccountConfig, credential: string): Promise<void> {
     await this.withClient(account, credential, async () => undefined);
@@ -183,15 +229,42 @@ export class ImapMailService {
     credential: string,
     run: (client: ImapClientPort) => Promise<T>,
   ): Promise<T> {
+    return this.serialize(() => this.runWithClient(account, credential, run));
+  }
+
+  private async runWithClient<T>(
+    account: NativeMailAccountConfig,
+    credential: string,
+    run: (client: ImapClientPort) => Promise<T>,
+  ): Promise<T> {
+    const failure = this.failedSessions.get(account.id);
+    if (failure) throw failure;
+    const session = this.sessions.get(account.id);
+    if (session) {
+      try {
+        const result = await run(session.client);
+        await session.lease?.success();
+        return result;
+      } catch (error) {
+        try {
+          const failure = await this.connectionError(error, session.lease);
+          this.failedSessions.set(account.id, failure);
+          throw failure;
+        }
+        finally { await this.releaseSession(account.id); }
+      }
+    }
+    const lease = await this.runtime?.acquire(account);
     const client = this.createClient(account, credential);
     let connected = false;
     try {
       await client.connect();
       connected = true;
-      return await run(client);
+      const result = await run(client);
+      await lease?.success();
+      return result;
     } catch (error) {
-      if (error instanceof NativeMailServiceError) throw error;
-      throw normalizeImapError(error);
+      throw await this.connectionError(error, lease);
     } finally {
       if (connected) {
         try {
@@ -200,6 +273,8 @@ export class ImapMailService {
           // The connection may already be closed; the original operation result wins.
         }
       }
+      client.close?.();
+      await lease?.release();
     }
   }
 }
@@ -327,17 +402,6 @@ function truncateUtf8(value: string, maxBytes: number): { text: string; truncate
   let end = maxBytes;
   while (end > 0 && (bytes[end] ?? 0) >> 6 === 0b10) end -= 1;
   return { text: bytes.subarray(0, end).toString('utf8'), truncated: true };
-}
-
-function normalizeImapError(error: unknown): NativeMailServiceError {
-  const message = error instanceof Error ? error.message : 'IMAP 操作失败';
-  if (/auth|login|credential|password/i.test(message)) {
-    return new NativeMailServiceError('AUTH_FAILED', '邮箱认证失败，请检查授权码', false);
-  }
-  if (/timeout|timed out|required time/i.test(message)) {
-    return new NativeMailServiceError('TIMEOUT', '邮箱连接超时', true);
-  }
-  return new NativeMailServiceError('CONNECTION_FAILED', message, true);
 }
 
 function isNonEmpty(value: string | undefined): value is string {

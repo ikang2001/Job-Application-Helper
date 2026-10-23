@@ -1,4 +1,5 @@
 import type { MailAccount } from '../accounts.ts';
+import { NativePortClient, type NativeResponse } from './nativePort.ts';
 import {
   MailProviderError,
   type MailProvider,
@@ -12,14 +13,6 @@ import type {
 } from '../types.ts';
 
 export const NATIVE_MAIL_HOST_NAME = 'com.job_application_helper.mail';
-
-interface NativeResponse<T> {
-  protocolVersion: 1;
-  requestId: string;
-  success: boolean;
-  data?: T;
-  error?: { code: string; message: string; retryable: boolean };
-}
 
 interface NativeHeader {
   id: string;
@@ -48,6 +41,7 @@ export type NativeMessenger = <T>(message: Record<string, unknown>) => Promise<N
 export class NativeImapProvider implements MailProvider {
   readonly kind = 'imap' as const;
   readonly accountId: string;
+  private port?: NativePortClient;
 
   constructor(
     private readonly account: MailAccount,
@@ -56,13 +50,35 @@ export class NativeImapProvider implements MailProvider {
     this.accountId = account.id;
   }
 
+  async beginScan(): Promise<void> {
+    if (this.send === sendNativeMessage) {
+      try { this.port = new NativePortClient(chrome.runtime.connectNative(NATIVE_MAIL_HOST_NAME)); }
+      catch (cause) {
+        throw new MailProviderError({ code: 'SERVICE_UNAVAILABLE', provider: 'imap', message: '本地邮箱组件未安装或不可用', cause });
+      }
+    }
+    try {
+      const ping = await this.request<{ capabilities?: string[] }>({ type: 'PING' });
+      if (!ping.capabilities?.includes('imap-session-v1')) {
+        throw this.invalid('请先升级本地邮箱组件至 1.1.2 或更高版本（无需重新授权）');
+      }
+      await this.request({ type: 'BEGIN_SESSION', accountId: this.accountId });
+    } catch (error) { this.port?.close(); this.port = undefined; throw error; }
+  }
+
+  async endScan(): Promise<void> {
+    try { if (this.port || this.send !== sendNativeMessage) await this.request({ type: 'END_SESSION', accountId: this.accountId }); }
+    catch { this.port?.close(); }
+    finally { this.port?.close(); this.port = undefined; }
+  }
+
   async testConnection(): Promise<MailConnectionResult> {
     try {
       await this.request<{ connected: boolean }>({ type: 'TEST_CONNECTION', accountId: this.accountId });
       return { connected: true, accountId: this.accountId, emailAddress: this.account.emailAddress };
     } catch (error) {
       if (!(error instanceof MailProviderError)) throw error;
-      return { connected: false, accountId: this.accountId, errorCode: error.code, message: error.message };
+      return { connected: false, accountId: this.accountId, errorCode: error.code, message: error.message, retryAt: error.retryAt };
     }
   }
 
@@ -134,17 +150,19 @@ export class NativeImapProvider implements MailProvider {
   }
 
   private async request<T = unknown>(payload: Record<string, unknown>): Promise<T> {
-    const response = await this.send<T>({
+    const message = {
       protocolVersion: 1,
       requestId: createRequestId(),
       ...payload,
-    });
+    };
+    const response = this.port ? await this.port.send<T>(message) : await this.send<T>(message);
     if (!response.success || response.data === undefined) {
       throw new MailProviderError({
         code: mapNativeError(response.error?.code),
         provider: this.kind,
         message: response.error?.message || '本地邮箱组件调用失败',
         retryable: response.error?.retryable,
+        retryAt: response.error?.retryAt,
       });
     }
     return response.data;
@@ -200,6 +218,8 @@ function createRequestId(): string {
 
 function mapNativeError(code: string | undefined): MailProviderError['code'] {
   switch (code) {
+    case 'RATE_LIMITED': return 'RATE_LIMITED';
+    case 'ACCOUNT_BUSY': return 'ACCOUNT_BUSY';
     case 'AUTH_FAILED':
     case 'CREDENTIAL_NOT_FOUND': return 'AUTH_REQUIRED';
     case 'ACCOUNT_NOT_FOUND': return 'NOT_FOUND';

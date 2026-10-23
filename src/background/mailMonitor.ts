@@ -17,6 +17,9 @@ import { MailProviderError, type MailProvider } from '../services/mail/provider.
 import { GmailProvider } from '../services/mail/providers/gmail.ts';
 import { NativeImapProvider } from '../services/mail/providers/nativeImap.ts';
 import { OutlookProvider } from '../services/mail/providers/outlook.ts';
+import { clearMailRetry, scheduleMailRetry } from './mailRetry.ts';
+import { matchEmailToApplication } from '../services/mail/matcher.ts';
+import { extractRecruitmentData } from '../services/mail/extractor.ts';
 import type {
   PendingMailReview,
   ProcessedMailCandidate,
@@ -32,8 +35,6 @@ import {
 export const MAIL_ACCOUNTS_STORAGE_KEY = 'mailAccounts';
 export const PENDING_MAIL_REVIEWS_STORAGE_KEY = 'pendingMailReviews';
 export const PROCESSED_MAIL_SOURCES_STORAGE_KEY = 'processedMailSources';
-const MAX_PENDING_REVIEWS = 500;
-const MAX_PROCESSED_SOURCES = 5000;
 const MAX_SCAN_PAGES = 5;
 const IMAP_SCAN_REVISION = 1;
 const INITIAL_SCAN_DAYS = 30;
@@ -71,6 +72,7 @@ const defaultDependencies: MailMonitorDependencies = {
 
 const accountQueues = new Map<string, Promise<unknown>>();
 let accountMutationQueue: Promise<void> = Promise.resolve();
+let reviewMutationQueue: Promise<unknown> = Promise.resolve();
 
 export async function handleGetMailAccounts(
   dependencies: MailMonitorDependencies = defaultDependencies,
@@ -115,18 +117,21 @@ export async function handleConnectMailAccount(
       const provider = new NativeImapProvider(account);
       await provider.upsertNativeAccount(credential);
       const result = await provider.testConnection();
-      if (!result.connected) throw new Error(result.message || 'IMAP 连接失败');
+      if (!result.connected) throw connectionError(result);
     } else {
       await connectMailOAuth(account);
     }
     await updateAccount(dependencies, accountId, {
-      connectionState: 'connected', lastError: undefined, updatedAt: dependencies.now().toISOString(),
+      connectionState: 'connected', lastError: undefined, retryAt: undefined, updatedAt: dependencies.now().toISOString(),
     });
+    await clearMailRetry(accountId);
     return { success: true };
   } catch (error) {
     await updateAccount(dependencies, accountId, {
       connectionState: 'error', lastError: errorMessage(error), updatedAt: dependencies.now().toISOString(),
+      retryAt: error instanceof MailProviderError ? error.retryAt : undefined,
     }).catch(() => undefined);
+    if (error instanceof MailProviderError && error.retryAt) await scheduleMailRetry(accountId, error.retryAt);
     return failure(error, '连接邮箱失败');
   }
 }
@@ -177,7 +182,15 @@ export async function handleTestMailAccount(
   try {
     const account = await requireMailAccount(accountId, dependencies);
     const result = await dependencies.createProvider(account, dependencies.tokenProvider).testConnection();
-    if (!result.connected) return { success: false, error: result.message || '连接测试失败' };
+    if (!result.connected) {
+      if (result.retryAt) {
+        await updateAccount(dependencies, accountId, { retryAt: result.retryAt, lastError: result.message });
+        await scheduleMailRetry(accountId, result.retryAt);
+      }
+      return { success: false, error: result.message || '连接测试失败' };
+    }
+    await clearMailRetry(accountId);
+    await updateAccount(dependencies, accountId, { retryAt: undefined });
     return { success: true, data: result };
   } catch (error) {
     return failure(error, '连接测试失败');
@@ -199,10 +212,13 @@ export async function handleSyncMail(
     } catch (error) {
       const message = errorMessage(error);
       await updateAccount(dependencies, account.id, {
-        connectionState: /授权|AUTH_REQUIRED/i.test(message) ? 'needs-authorization' : 'error',
+        connectionState: error instanceof MailProviderError && error.code === 'AUTH_REQUIRED' ? 'needs-authorization'
+          : error instanceof MailProviderError && error.code === 'ACCOUNT_BUSY' ? account.connectionState : 'error',
         lastError: message,
+        retryAt: error instanceof MailProviderError ? error.retryAt : undefined,
         updatedAt: dependencies.now().toISOString(),
       });
+      if (error instanceof MailProviderError && error.retryAt) await scheduleMailRetry(account.id, error.retryAt);
       results.push({
         accountId: account.id, inspectedHeaders: 0, fetchedMessages: 0,
         autoUpdated: 0, pendingReviews: 0, skippedDuplicates: 0, error: message,
@@ -232,7 +248,7 @@ export async function handleConfirmMailReview(
     const event = eventFromReview(review);
     const result = await appendApplicationEventToRecord(targetRecordId, event);
     if (!result.record) return { success: false, error: '投递记录不存在' };
-    await finalizeReview(review, reviews, dependencies);
+    await finalizeReview(review, dependencies);
     return { success: true, data: { recordId: targetRecordId, added: result.added } };
   } catch (error) {
     return failure(error, '确认邮件关联失败');
@@ -252,7 +268,7 @@ export async function handleIgnoreMailReview(
         review.recordId, review.sourceKey, 'ignored', dependencies.now().toISOString(),
       );
     }
-    await finalizeReview(review, reviews, dependencies);
+    await finalizeReview(review, dependencies);
     return { success: true };
   } catch (error) {
     return failure(error, '忽略邮件失败');
@@ -264,10 +280,27 @@ async function syncMailAccount(
   dependencies: MailMonitorDependencies,
 ): Promise<MailSyncAccountResult> {
   const provider = dependencies.createProvider(account, dependencies.tokenProvider);
+  try {
+    await provider.beginScan?.();
+    return await scanMailAccountPages(account, dependencies, provider);
+  } finally {
+    await provider.endScan?.();
+  }
+}
+
+async function scanMailAccountPages(
+  account: MailAccount,
+  dependencies: MailMonitorDependencies,
+  provider: MailProvider,
+): Promise<MailSyncAccountResult> {
   const records = await readApplicationRecords();
   const tombstones = await readApplicationEventTombstones();
   const processed = await readProcessedSources(dependencies);
-  const existingKeys = records.flatMap(record => record.events.map(event => event.sourceKey));
+  const pending = await readPendingReviews(dependencies);
+  const existingKeys = [
+    ...records.flatMap(record => record.events.map(event => event.sourceKey)),
+    ...pending.map(review => review.sourceKey),
+  ];
   const fullScanSince = new Date(
     dependencies.now().getTime() - INITIAL_SCAN_DAYS * 86_400_000,
   ).toISOString();
@@ -291,7 +324,7 @@ async function syncMailAccount(
         limit: 50,
         cursor,
         since,
-        existingSourceKeys: [...existingKeys, ...processed, ...newProcessed],
+        existingSourceKeys: [...existingKeys, ...processed, ...newProcessed, ...newReviews.map(review => review.sourceKey)],
         suppressedSourceKeys: tombstones,
       });
     } catch (error) {
@@ -324,29 +357,21 @@ async function syncMailAccount(
       }
     }
 
-    if (result.nextCursor) {
-      cursor = result.nextCursor;
-      continue;
-    }
-    cursor = result.syncCursor ?? cursor;
-    break;
+    cursor = result.nextCursor ?? result.syncCursor ?? cursor;
+    // 先保存页面数据，再提交游标；后续页失败不会丢掉已完成页。
+    await saveMailPage(account, dependencies, records, processed, newProcessed, newReviews, cursor);
+    if (!result.nextCursor) break;
   }
-
-  const existingReviews = await readPendingReviews(dependencies);
-  const reviewsById = new Map(existingReviews.map(review => [review.id, review]));
-  newReviews.forEach(review => reviewsById.set(review.id, review));
-  await dependencies.write({
-    [PENDING_MAIL_REVIEWS_STORAGE_KEY]: [...reviewsById.values()].slice(-MAX_PENDING_REVIEWS),
-    [PROCESSED_MAIL_SOURCES_STORAGE_KEY]: uniqueProcessed([...processed, ...newProcessed]).slice(-MAX_PROCESSED_SOURCES),
-  });
   await updateAccount(dependencies, account.id, {
     cursor,
     lastSyncAt: dependencies.now().toISOString(),
     lastError: undefined,
+    retryAt: undefined,
     connectionState: 'connected',
     imapScanRevision: account.provider === 'imap' ? IMAP_SCAN_REVISION : account.imapScanRevision,
     updatedAt: dependencies.now().toISOString(),
   });
+  await clearMailRetry(account.id);
   return {
     accountId: account.id,
     inspectedHeaders,
@@ -355,6 +380,52 @@ async function syncMailAccount(
     pendingReviews: pendingCount,
     skippedDuplicates,
   };
+}
+
+async function saveMailPage(
+  account: MailAccount,
+  dependencies: MailMonitorDependencies,
+  records: Awaited<ReturnType<typeof readApplicationRecords>>,
+  processed: ProcessedMailSource[],
+  newProcessed: ProcessedMailSource[],
+  newReviews: PendingMailReview[],
+  cursor: string | undefined,
+): Promise<void> {
+  await mutateReviews(async () => {
+    const existingReviews = await readPendingReviews(dependencies);
+    const latestProcessed = await readProcessedSources(dependencies);
+    const finalized = new Set(latestProcessed.map(source => source.sourceKey));
+    const reviewsById = new Map(existingReviews.map(review => [review.id, enrichStoredReview(review, records)]));
+    for (const review of newReviews) {
+      if (!finalized.has(review.sourceKey) && !reviewsById.has(review.id)) reviewsById.set(review.id, review);
+    }
+    await dependencies.write({
+      [PENDING_MAIL_REVIEWS_STORAGE_KEY]: [...reviewsById.values()],
+      [PROCESSED_MAIL_SOURCES_STORAGE_KEY]: uniqueProcessed([...latestProcessed, ...processed, ...newProcessed]),
+    });
+  });
+  await updateAccount(dependencies, account.id, { cursor,
+    imapScanRevision: account.provider === 'imap' ? IMAP_SCAN_REVISION : account.imapScanRevision,
+  });
+}
+
+function enrichStoredReview(
+  review: PendingMailReview,
+  records: Awaited<ReturnType<typeof readApplicationRecords>>,
+): PendingMailReview {
+  const match = matchEmailToApplication(review.email, review.extracted, records);
+  const extracted = extractRecruitmentData(review.email);
+  const savedFields = Object.fromEntries(Object.entries(review.extracted).filter(([, value]) => value !== undefined));
+  return { ...review, recordId: match.recordId ?? review.recordId, extracted: { ...extracted, ...savedFields } };
+}
+
+function connectionError(result: { errorCode?: string; message?: string; retryAt?: string }): MailProviderError {
+  return new MailProviderError({
+    code: result.errorCode === 'RATE_LIMITED' ? 'RATE_LIMITED'
+      : result.errorCode === 'ACCOUNT_BUSY' ? 'ACCOUNT_BUSY'
+      : result.errorCode === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'SERVICE_UNAVAILABLE',
+    provider: 'imap', message: result.message || 'IMAP 连接失败', retryAt: result.retryAt,
+  });
 }
 
 function createMailProvider(account: MailAccount, tokenProvider: OAuthTokenProvider): MailProvider {
@@ -441,16 +512,18 @@ function sanitizePendingReview(review: PendingMailReview): PendingMailReview {
 
 async function finalizeReview(
   review: PendingMailReview,
-  reviews: PendingMailReview[],
   dependencies: MailMonitorDependencies,
 ): Promise<void> {
-  const processed = await readProcessedSources(dependencies);
-  await dependencies.write({
-    [PENDING_MAIL_REVIEWS_STORAGE_KEY]: reviews.filter(item => item.id !== review.id),
-    [PROCESSED_MAIL_SOURCES_STORAGE_KEY]: uniqueProcessed([
-      ...processed,
-      { sourceKey: review.sourceKey, processedAt: dependencies.now().toISOString() },
-    ]).slice(-MAX_PROCESSED_SOURCES),
+  await mutateReviews(async () => {
+    const processed = await readProcessedSources(dependencies);
+    const latest = await readPendingReviews(dependencies);
+    await dependencies.write({
+      [PENDING_MAIL_REVIEWS_STORAGE_KEY]: latest.filter(item => item.id !== review.id),
+      [PROCESSED_MAIL_SOURCES_STORAGE_KEY]: uniqueProcessed([
+        ...processed,
+        { sourceKey: review.sourceKey, processedAt: dependencies.now().toISOString() },
+      ]),
+    });
   });
 }
 
@@ -532,9 +605,16 @@ function validateMailAccount(account: MailAccount): MailAccount {
 }
 
 function enqueueAccount<T>(accountId: string, operation: () => Promise<T>): Promise<T> {
-  const previous = accountQueues.get(accountId) ?? Promise.resolve();
-  const task = previous.then(operation, operation);
-  accountQueues.set(accountId, task.then(() => undefined, () => undefined));
+  const previous = accountQueues.get(accountId);
+  if (previous) return previous as Promise<T>;
+  const task = operation().finally(() => { if (accountQueues.get(accountId) === task) accountQueues.delete(accountId); });
+  accountQueues.set(accountId, task);
+  return task;
+}
+
+function mutateReviews<T>(operation: () => Promise<T>): Promise<T> {
+  const task = reviewMutationQueue.then(operation);
+  reviewMutationQueue = task.catch(() => undefined);
   return task;
 }
 

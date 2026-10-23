@@ -12,6 +12,7 @@ import { DesktopSyncService } from './desktopSyncService.ts';
 import { MobileSnapshotSyncService } from './mobileSnapshotSyncService.ts';
 import { DesktopMailInboxService } from './desktopMailInboxService.ts';
 import { DesktopNativeMailClient } from './desktopNativeMailClient.ts';
+import type { DesktopNativeMailPort } from './desktopNativeMailClient.ts';
 
 test('批量删除一次同步全部墓碑，保留未选记录及邮箱配置，刷新不复活', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'jah-batch-delete-'));
@@ -57,6 +58,46 @@ function record(id: string, updatedAt: string): ApplicationRecord {
     updatedAt,
   };
 }
+
+test('扫描保存检查点及最终结果不覆盖期间的人工审核决定和投递数据', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'jah-mail-review-race-'));
+  const store = new DesktopStore(join(directory, 'desktop.json'));
+  const shared = new LocalApplicationRecordsStore(join(directory, 'shared.json'));
+  let releaseScan: () => void = () => undefined;
+  let started: () => void = () => undefined;
+  const startedPromise = new Promise<void>(resolve => { started = resolve; });
+  const paused = new Promise<void>(resolve => { releaseScan = resolve; });
+  const client: DesktopNativeMailPort = {
+    listAccounts: async () => [{ id: 'test', provider: 'imap', emailAddress: 'test@example.com' }],
+    ping: async () => ({ host: 'test', version: 'test' }), testConnection: async () => undefined,
+    listMessages: async () => { started(); await paused; return { messages: [], cursor: { uidValidity: '1', lastUid: 101 }, hasMore: false }; },
+    getMessage: async () => { throw new Error('不应读取旧邮件'); },
+  };
+  const codec = { encrypt: (value: string) => value, decrypt: (value: string) => value };
+  const controller = new DesktopController(store, new DesktopSyncService(store, codec),
+    new DesktopLocalSyncService(shared), new MobileSnapshotSyncService(store, codec), new DesktopMailInboxService(client));
+  try {
+    const initial = { ...await store.read(), records: [record('one', '2026-09-04T01:00:00Z')], favoriteRecordIds: ['one'],
+      mailInbox: { status: 'idle' as const, accounts: [], cursors: {}, reviews: [{
+        id: 'review-1', accountId: 'test', messageId: '101', from: 'hr@example.com', subject: '笔试邀请',
+        receivedAt: '2026-09-04T01:00:00Z', summary: '请参加笔试', category: 'assessment_invite',
+        candidateRecordIds: [], state: 'pending' as const,
+      }] } };
+    await store.write(initial);
+    const scanning = controller.scanMail();
+    await startedPromise;
+    const latest = await store.read();
+    latest.mailInbox!.reviews[0]!.state = 'ignored';
+    latest.mailInbox!.reviews[0]!.reviewedAt = '2026-09-04T02:00:00Z';
+    await store.write(latest);
+    releaseScan(); await scanning;
+    const after = await store.read();
+    assert.deepEqual(after.records, latest.records); assert.deepEqual(after.favoriteRecordIds, ['one']);
+    assert.equal(after.mailInbox?.reviews[0]?.state, 'ignored');
+    assert.equal(after.mailInbox?.reviews[0]?.reviewedAt, '2026-09-04T02:00:00Z');
+    assert.equal(after.mailInbox?.cursors.test?.lastUid, 101);
+  } finally { releaseScan(); controller.stop(); await rm(directory, { recursive: true, force: true }); }
+});
 
 test('桌面服务可读取 Edge 写入并将桌面删除传播到共享文件', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'jah-desktop-local-sync-'));

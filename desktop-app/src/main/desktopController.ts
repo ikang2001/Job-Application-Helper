@@ -24,12 +24,21 @@ import {
   saveDesktopRecord,
   serializeDesktopData,
 } from '../domain/records.ts';
-import { DesktopStore, type DesktopData } from './desktopStore.ts';
+import { DesktopStore, type DesktopData, type StoredDesktopMailInbox } from './desktopStore.ts';
 import { DesktopLocalSyncService } from './desktopLocalSyncService.ts';
 import { DesktopSyncService } from './desktopSyncService.ts';
 import { MobileSnapshotSyncService } from './mobileSnapshotSyncService.ts';
 import { DesktopMailInboxService } from './desktopMailInboxService.ts';
 import { isMailScanMinutes, normalizeMailScanMinutes } from '../shared/pollingIntervals.ts';
+
+function preserveReviewDecisions(scanned: StoredDesktopMailInbox, latest?: StoredDesktopMailInbox): StoredDesktopMailInbox {
+  const byId = new Map(latest?.reviews.map(review => [review.id, review]));
+  for (const review of scanned.reviews) {
+    const current = byId.get(review.id);
+    byId.set(review.id, current && current.state !== 'pending' ? current : review);
+  }
+  return { ...scanned, reviews: [...byId.values()] };
+}
 
 export class DesktopController {
   private queue: Promise<unknown> = Promise.resolve();
@@ -389,10 +398,14 @@ export class DesktopController {
     };
     this.stateListener?.(this.toState(scanning));
     try {
-      const scanned = await this.mailInboxService.scan(basis);
+      const scanned = await this.mailInboxService.scan(basis, inbox => this.enqueue(async () => {
+        const latest = await this.store.read();
+        await this.store.write({ ...latest, mailInbox: preserveReviewDecisions(inbox, latest.mailInbox) });
+      }));
       return this.enqueue(async () => {
         const latest = await this.store.read();
-        const next = { ...latest, mailInbox: scanned.mailInbox };
+        const next = { ...latest, mailInbox: scanned.mailInbox
+          ? preserveReviewDecisions(scanned.mailInbox, latest.mailInbox) : latest.mailInbox };
         await this.store.write(next);
         this.notify(next, false);
         return this.toState(next);

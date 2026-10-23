@@ -1,4 +1,5 @@
 import { handleSyncMail } from './mailMonitor.ts';
+import { MAIL_RETRY_ALARM_PREFIX, restoreMailRetries } from './mailRetry.ts';
 
 export const MAIL_SCAN_ALARM_NAME = 'job-application-helper-mail-scan';
 export const MAIL_SCAN_PERIOD_MINUTES = 15;
@@ -9,6 +10,7 @@ export interface MailAlarmPort {
 }
 
 export async function ensureMailScanAlarm(alarms: MailAlarmPort): Promise<void> {
+  await restoreMailRetries();
   if (await alarms.get(MAIL_SCAN_ALARM_NAME)) return;
   await alarms.create(MAIL_SCAN_ALARM_NAME, {
     delayInMinutes: MAIL_SCAN_PERIOD_MINUTES,
@@ -17,8 +19,10 @@ export async function ensureMailScanAlarm(alarms: MailAlarmPort): Promise<void> 
 }
 
 export async function handleMailAlarm(alarm: Pick<chrome.alarms.Alarm, 'name'>): Promise<void> {
-  if (alarm.name !== MAIL_SCAN_ALARM_NAME) return;
-  const result = await handleSyncMail(undefined);
+  const retryAccountId = alarm.name.startsWith(MAIL_RETRY_ALARM_PREFIX)
+    ? decodeURIComponent(alarm.name.slice(MAIL_RETRY_ALARM_PREFIX.length)) : undefined;
+  if (alarm.name !== MAIL_SCAN_ALARM_NAME && !retryAccountId) return;
+  const result = await handleSyncMail(retryAccountId);
   const failures = result.data?.filter(account => account.error) ?? [];
   if (failures.length > 0) {
     console.warn(`[MailMonitor] ${failures.length} 个邮箱扫描失败`);

@@ -1,10 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-
-const MAX_NATIVE_RESPONSE_BYTES = 1024 * 1024;
-const MAX_STDERR_BYTES = 16 * 1024;
-const NATIVE_TIMEOUT_MS = 45_000;
+import { DesktopMailError, NativeMailTransport } from './nativeMailTransport.ts';
+export { DesktopMailError } from './nativeMailTransport.ts';
 
 export interface DesktopNativeMailAccount {
   id: string;
@@ -40,7 +38,10 @@ export interface DesktopNativeMailPage {
 
 export interface DesktopNativeMailPort {
   listAccounts(): Promise<DesktopNativeMailAccount[]>;
-  ping(): Promise<{ host: string; version: string }>;
+  ping(): Promise<{ host: string; version: string; capabilities?: string[] }>;
+  beginScan?(accountId: string): Promise<void>;
+  endScan?(accountId: string): Promise<void>;
+  close?(): void;
   testConnection(accountId: string): Promise<void>;
   listMessages(
     accountId: string,
@@ -49,15 +50,8 @@ export interface DesktopNativeMailPort {
   getMessage(accountId: string, messageId: string): Promise<DesktopNativeMailMessage>;
 }
 
-interface NativeResponse<T> {
-  protocolVersion: 1;
-  requestId: string;
-  success: boolean;
-  data?: T;
-  error?: { code?: string; message?: string; retryable?: boolean };
-}
-
 export class DesktopNativeMailClient implements DesktopNativeMailPort {
+  private transport?: NativeMailTransport;
   constructor(
     private readonly localAppData = process.env.LOCALAPPDATA ?? '',
     private readonly spawnHost: (hostPath: string) => ChildProcessWithoutNullStreams = defaultSpawnHost,
@@ -78,9 +72,30 @@ export class DesktopNativeMailClient implements DesktopNativeMailPort {
     }
   }
 
-  async ping(): Promise<{ host: string; version: string }> {
+  async ping(): Promise<{ host: string; version: string; capabilities?: string[] }> {
     return this.request('PING', {});
   }
+
+  async beginScan(accountId: string): Promise<void> {
+    if (this.transport) throw new DesktopMailError('ACCOUNT_BUSY', '本地邮箱正在扫描，本次已跳过', true);
+    const transport = new NativeMailTransport(this.spawnHost(await this.hostPath()));
+    this.transport = transport;
+    try {
+      const ping = await transport.request<{ capabilities?: string[] }>('PING', {});
+      if (!ping.capabilities?.includes('imap-session-v1')) {
+        throw new DesktopMailError('UPGRADE_REQUIRED', '请先升级本地邮箱组件至 1.1.2 或更高版本（无需重新授权）');
+      }
+      await transport.request('BEGIN_SESSION', { accountId });
+    } catch (error) { this.close(); throw error; }
+  }
+
+  async endScan(accountId: string): Promise<void> {
+    try { await this.transport?.request('END_SESSION', { accountId }); }
+    catch { this.close(); }
+    finally { this.close(); }
+  }
+
+  close(): void { this.transport?.close(); this.transport = undefined; }
 
   async testConnection(accountId: string): Promise<void> {
     await this.request('TEST_CONNECTION', { accountId });
@@ -98,77 +113,10 @@ export class DesktopNativeMailClient implements DesktopNativeMailPort {
   }
 
   private async request<T>(type: string, payload: Record<string, unknown>): Promise<T> {
-    const hostPath = await this.hostPath();
-    const requestId = crypto.randomUUID();
-    const process = this.spawnHost(hostPath);
-    const request = Buffer.from(JSON.stringify({
-      protocolVersion: 1,
-      requestId,
-      type,
-      ...payload,
-    }), 'utf8');
-    const frame = Buffer.allocUnsafe(request.length + 4);
-    frame.writeUInt32LE(request.length, 0);
-    request.copy(frame, 4);
-
-    return new Promise<T>((resolve, reject) => {
-      const output: Buffer[] = [];
-      let outputLength = 0;
-      let stderr = '';
-      let settled = false;
-      const timer = setTimeout(() => {
-        process.kill();
-        finish(new Error('本地邮箱组件响应超时'));
-      }, NATIVE_TIMEOUT_MS);
-
-      const finish = (error?: Error, value?: T) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (error) reject(error);
-        else resolve(value as T);
-      };
-
-      process.stdout.on('data', (chunk: Buffer) => {
-        outputLength += chunk.length;
-        if (outputLength > MAX_NATIVE_RESPONSE_BYTES + 4) {
-          process.kill();
-          finish(new Error('本地邮箱组件响应过大'));
-          return;
-        }
-        output.push(chunk);
-        const combined = Buffer.concat(output, outputLength);
-        if (combined.length < 4) return;
-        const length = combined.readUInt32LE(0);
-        if (length < 1 || length > MAX_NATIVE_RESPONSE_BYTES) {
-          process.kill();
-          finish(new Error('本地邮箱组件响应长度无效'));
-          return;
-        }
-        if (combined.length < length + 4) return;
-        try {
-          const response = JSON.parse(combined.subarray(4, length + 4).toString('utf8')) as NativeResponse<T>;
-          if (response.requestId !== requestId || response.protocolVersion !== 1) {
-            throw new Error('本地邮箱组件响应与请求不匹配');
-          }
-          if (!response.success || response.data === undefined) {
-            throw new Error(response.error?.message || '本地邮箱组件调用失败');
-          }
-          finish(undefined, response.data);
-        } catch (error) {
-          finish(error instanceof Error ? error : new Error('本地邮箱组件返回无效数据'));
-        }
-      });
-      process.stderr.on('data', (chunk: Buffer) => {
-        if (stderr.length < MAX_STDERR_BYTES) stderr += chunk.toString('utf8');
-      });
-      process.once('error', error => finish(new Error(`无法启动本地邮箱组件：${error.message}`)));
-      process.once('exit', code => {
-        if (!settled) finish(new Error(stderr.trim() || `本地邮箱组件异常退出（${code ?? 'unknown'}）`));
-      });
-      process.stdin.once('error', error => finish(new Error(`无法写入本地邮箱组件：${error.message}`)));
-      process.stdin.end(frame);
-    });
+    if (this.transport) return this.transport.request<T>(type, payload);
+    const transport = new NativeMailTransport(this.spawnHost(await this.hostPath()));
+    try { return await transport.request<T>(type, payload); }
+    finally { transport.close(); }
   }
 
   private async hostPath(): Promise<string> {

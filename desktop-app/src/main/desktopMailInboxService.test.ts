@@ -9,6 +9,7 @@ import type {
   DesktopNativeMailPage,
   DesktopNativeMailPort,
 } from './desktopNativeMailClient.ts';
+import { DesktopMailError } from './desktopNativeMailClient.ts';
 
 const NOW = '2026-09-09T12:00:00.000Z';
 
@@ -150,8 +151,8 @@ test('桌面邮箱扫描跳过重复预检并在瞬时连接超时后重试', as
   });
 
   assert.equal(attempts, 2);
-  assert.equal(client.lastListOptions?.cursor, undefined);
-  assert.ok(client.lastListOptions?.since);
+  assert.deepEqual(client.lastListOptions?.cursor, { uidValidity: '1', lastUid: 499 });
+  assert.equal(client.lastListOptions?.since, undefined);
   assert.equal(next.mailInbox?.status, 'idle');
   assert.equal(next.mailInbox?.accounts[0]?.connection, 'connected');
   assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 500 });
@@ -576,4 +577,63 @@ test('已有扫描游标会原样传给邮箱组件且不会读取旧邮件正�
   assert.deepEqual(client.lastListOptions?.cursor, { uidValidity: '1', lastUid: 300 });
   assert.equal(client.getMessageCalls, 0);
   assert.deepEqual(next.mailInbox?.cursors['account-1'], { uidValidity: '1', lastUid: 300 });
+});
+
+test('第二页失败保留第一页检查点，失败页不越过且释放会话', async () => {
+  const client = new FakeNativeMailClient();
+  let pages = 0;
+  let ended = 0;
+  const original = client.listMessages.bind(client);
+  client.listMessages = async (...args) => {
+    if (++pages > 1) throw new DesktopMailError('RATE_LIMITED', '等待自动重试', true);
+    return { ...await original(...args), hasMore: true };
+  };
+  const port: DesktopNativeMailPort = Object.assign(client, {
+    beginScan: async () => undefined, endScan: async () => { ended++; },
+  });
+  const data: DesktopData = { schemaVersion: 1, records: [], favoriteRecordIds: [], careerFairs: [], sync: { status: 'idle' } };
+  const checkpoints: DesktopData['mailInbox'][] = [];
+  const next = await new DesktopMailInboxService(port).scan(data, async inbox => { checkpoints.push(structuredClone(inbox)); });
+  assert.equal(ended, 1); assert.equal(checkpoints.length, 1);
+  assert.equal(checkpoints[0]?.cursors['account-1']?.lastUid, 101);
+  assert.equal(next.mailInbox?.cursors['account-1']?.lastUid, 101);
+  assert.equal(next.mailInbox?.reviews.length, 1);
+});
+
+test('重叠扫描跳过已有审核正文，保留确认和忽略状态及全部招聘数据', async () => {
+  const client = new FakeNativeMailClient();
+  const service = new DesktopMailInboxService(client);
+  const data: DesktopData = { schemaVersion: 1, records: [record('岗位', 'https://jobs.example.com/1')],
+    favoriteRecordIds: [], careerFairs: [], sync: { status: 'idle' } };
+  const first = await service.scan(data);
+  first.mailInbox!.reviews[0]!.state = 'confirmed';
+  const second = await service.scan(first);
+  assert.equal(client.getMessageCalls, 1);
+  assert.deepEqual(second.records, data.records);
+  assert.deepEqual(second.mailInbox?.reviews, first.mailInbox?.reviews);
+});
+
+test('连续点击合并为一轮扫描', async () => {
+  const client = new FakeNativeMailClient();
+  const service = new DesktopMailInboxService(client);
+  const data: DesktopData = { schemaVersion: 1, records: [], favoriteRecordIds: [], careerFairs: [], sync: { status: 'idle' } };
+  await Promise.all([service.scan(data), service.scan(data), service.scan(data)]);
+  assert.equal(client.getMessageCalls, 1);
+});
+
+test('限流到期只安排一次自动恢复，普通间隔仍然保留', async context => {
+  context.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: Date.parse(NOW) });
+  const client = new FakeNativeMailClient();
+  client.listMessages = async () => { throw new DesktopMailError('RATE_LIMITED', '等待自动重试', true,
+    new Date(Date.now() + 30 * 60_000).toISOString()); };
+  const service = new DesktopMailInboxService(client);
+  let scans = 0;
+  service.start(() => { scans++; }, 120);
+  const data: DesktopData = { schemaVersion: 1, records: [], favoriteRecordIds: [], careerFairs: [], sync: { status: 'idle' } };
+  try {
+    await service.scan(data); await service.scan(data);
+    context.mock.timers.tick(30 * 60_000 - 1);
+    assert.equal(scans, 1);
+    context.mock.timers.tick(1); assert.equal(scans, 2);
+  } finally { service.stop(); }
 });

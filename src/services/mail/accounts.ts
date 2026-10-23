@@ -18,6 +18,7 @@ export interface MailAccount {
   imapScanRevision?: number;
   lastSyncAt?: string;
   lastError?: string;
+  retryAt?: string;
   connectionState?: 'disconnected' | 'connected' | 'needs-authorization' | 'error';
   createdAt?: string;
   updatedAt?: string;

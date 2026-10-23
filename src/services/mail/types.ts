@@ -59,6 +59,7 @@ export interface MailConnectionResult {
   emailAddress?: string;
   displayName?: string;
   errorCode?: string;
+  retryAt?: string;
   message?: string;
 }
 
