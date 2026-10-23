@@ -74,7 +74,7 @@ export function MailInboxView(props: MailInboxViewProps) {
       {props.onSetScanInterval && <PollingIntervalControl
         label="招聘邮箱自动扫描间隔" minutes={normalizeMailScanMinutes(props.inbox.scanIntervalMinutes)}
         min={1} max={MAX_MAIL_SCAN_MINUTES} step={1} busy={props.busy} onSave={props.onSetScanInterval}
-        hint="保存后立即调整自动扫描周期，重启后保留。仅桌面端运行时自动扫描；手动“扫描邮箱”不受影响。频繁扫描可能受到邮箱服务商限制。"
+        hint="保存后立即调整自动扫描周期，重启后保留。仅桌面端运行时自动扫描；手动扫描不受普通间隔限制，但限流冷却期间仍需等待自动重试。"
       />}
 
       <div className="records-toolbar mail-toolbar">

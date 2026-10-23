@@ -14,6 +14,7 @@ import type {
 } from '../shared/contracts.ts';
 import type { DesktopData, StoredDesktopMailInbox } from './desktopStore.ts';
 import {
+  DesktopMailError,
   type DesktopNativeMailAccount,
   type DesktopNativeMailHeader,
   type DesktopNativeMailMessage,
@@ -24,7 +25,6 @@ const INITIAL_SCAN_DELAY_MS = 2_000;
 const FIRST_SCAN_DAYS = 30;
 const PAGE_LIMIT = 40;
 const MAX_PAGES_PER_SCAN = 4;
-const MAX_STORED_REVIEWS = 500;
 const TRANSIENT_SCAN_RETRIES = 1;
 const SCHEDULED_REVIEW_STAGES = new Set<DesktopMailReviewStage>([
   'writtenTest', 'assessment', 'ai', 'first', 'second', 'third', 'hr',
@@ -34,6 +34,8 @@ export class DesktopMailInboxService {
   private initialTimer?: ReturnType<typeof setTimeout>;
   private interval?: ReturnType<typeof setInterval>;
   private scanCallback?: () => void;
+  private scanTask?: Promise<DesktopData>;
+  private readonly retryTimers = new Map<string, { at: string; timer: ReturnType<typeof setTimeout> }>();
 
   constructor(private readonly client: DesktopNativeMailPort) {}
 
@@ -57,9 +59,18 @@ export class DesktopMailInboxService {
     this.initialTimer = undefined;
     this.interval = undefined;
     this.scanCallback = undefined;
+    for (const retry of this.retryTimers.values()) clearTimeout(retry.timer);
+    this.retryTimers.clear();
+    this.client.close?.();
   }
 
-  async scan(data: DesktopData): Promise<DesktopData> {
+  scan(data: DesktopData, checkpoint?: (inbox: StoredDesktopMailInbox) => Promise<void>): Promise<DesktopData> {
+    if (this.scanTask) return this.scanTask;
+    this.scanTask = this.performScan(data, checkpoint).finally(() => { this.scanTask = undefined; });
+    return this.scanTask;
+  }
+
+  private async performScan(data: DesktopData, checkpoint?: (inbox: StoredDesktopMailInbox) => Promise<void>): Promise<DesktopData> {
     const accounts = await this.client.listAccounts();
     const stored = data.mailInbox ?? emptyInbox();
     const current = {
@@ -78,22 +89,36 @@ export class DesktopMailInboxService {
       };
     }
 
-    const cursors = current.status === 'error' ? {} : { ...current.cursors };
+    const cursors = { ...current.cursors };
     const discovered: DesktopMailReview[] = [];
     const accountStates: DesktopMailAccountState[] = [];
     let successfulAccounts = 0;
 
     for (const account of accounts) {
       try {
-        await this.scanAccount(account, data, current, cursors, discovered);
+        await this.client.beginScan?.(account.id);
+        await this.scanAccount(account, data, current, cursors, discovered, checkpoint);
+        const retry = this.retryTimers.get(account.id);
+        if (retry) clearTimeout(retry.timer);
+        this.retryTimers.delete(account.id);
         successfulAccounts += 1;
         accountStates.push(accountState(account, 'connected'));
       } catch (error) {
+        if (error instanceof DesktopMailError && error.code === 'RATE_LIMITED' && error.retryAt) {
+          this.scheduleRetry(account.id, error.retryAt);
+        }
+        if (error instanceof DesktopMailError && error.code === 'ACCOUNT_BUSY') {
+          successfulAccounts += 1;
+          accountStates.push(accountState(account, 'unknown', error.message));
+          continue;
+        }
         accountStates.push(accountState(
           account,
           'error',
           error instanceof Error ? error.message : '邮箱扫描失败',
         ));
+      } finally {
+        await this.client.endScan?.(account.id);
       }
     }
 
@@ -121,6 +146,7 @@ export class DesktopMailInboxService {
     current: StoredDesktopMailInbox,
     cursors: StoredDesktopMailInbox['cursors'],
     discovered: DesktopMailReview[],
+    checkpoint?: (inbox: StoredDesktopMailInbox) => Promise<void>,
   ): Promise<void> {
     let cursor = cursors[account.id];
     const since = cursor ? undefined : new Date(Date.now() - FIRST_SCAN_DAYS * 86_400_000).toISOString();
@@ -130,21 +156,40 @@ export class DesktopMailInboxService {
         since,
         limit: PAGE_LIMIT,
       });
-      const headers = page.messages.filter(header => (
+      const existingIds = new Set([...current.reviews, ...discovered]
+        .filter(review => review.accountId === account.id).map(review => review.messageId));
+      const headers = page.messages.filter(header => !existingIds.has(header.id) && (
         headerIsCandidate(header)
         || matchDesktopMailCompany(headerText(header), undefined, data.records).recordIds.length > 0
       ));
-      const messages = await mapWithConcurrency(headers, 3, header => (
-        this.client.getMessage(account.id, header.id)
-      ));
+      const pageReviews: DesktopMailReview[] = [];
+      // 串行命令避免某封失败后仍有后台 worker 继续触发登录。
+      const messages: DesktopNativeMailMessage[] = [];
+      for (const header of headers) messages.push(await this.client.getMessage(account.id, header.id));
       for (const message of messages) {
         const review = buildReview(account, message, data, current.reviews);
-        if (review) discovered.push(review);
+        if (review) pageReviews.push(review);
       }
+      await checkpoint?.({ ...current, status: 'scanning',
+        reviews: mergeReviews(current.reviews, [...discovered, ...pageReviews]),
+        cursors: { ...cursors, [account.id]: page.cursor },
+      });
+      discovered.push(...pageReviews);
       cursor = page.cursor;
       cursors[account.id] = cursor;
       if (!page.hasMore) break;
     }
+  }
+
+  private scheduleRetry(accountId: string, retryAt: string): void {
+    if (!this.scanCallback || this.retryTimers.get(accountId)?.at === retryAt) return;
+    const previous = this.retryTimers.get(accountId);
+    if (previous) clearTimeout(previous.timer);
+    const timer = setTimeout(() => {
+      this.retryTimers.delete(accountId);
+      this.scanCallback?.();
+    }, Math.max(0, Date.parse(retryAt) - Date.now()));
+    this.retryTimers.set(accountId, { at: retryAt, timer });
   }
 
   private async listMessages(
@@ -274,8 +319,7 @@ function mergeReviews(
     byId.set(review.id, current?.state === 'pending' || !current ? review : current);
   }
   return [...byId.values()]
-    .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt))
-    .slice(0, MAX_STORED_REVIEWS);
+    .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt));
 }
 
 function enrichPendingReview(
@@ -356,22 +400,4 @@ function isTransientConnectionError(error: unknown): boolean {
 
 function emptyInbox(): StoredDesktopMailInbox {
   return { status: 'idle', accounts: [], reviews: [], cursors: {} };
-}
-
-async function mapWithConcurrency<T, R>(
-  input: readonly T[],
-  concurrency: number,
-  mapper: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(input.length);
-  let nextIndex = 0;
-  const workers = Array.from({ length: Math.min(concurrency, input.length) }, async () => {
-    while (nextIndex < input.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(input[index]!);
-    }
-  });
-  await Promise.all(workers);
-  return results;
 }

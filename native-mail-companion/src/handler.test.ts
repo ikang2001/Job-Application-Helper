@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { handleNativeMailRequest, parseNativeMailRequest } from './handler.js';
 import { ImapMailService } from './imapService.js';
+import { NativeMailServiceError } from './mailErrors.js';
 import { LocalApplicationRecordsStore } from './localRecordsStore.js';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -89,6 +90,16 @@ test('账号不存在或缺少凭据时返回稳定错误', async () => {
     protocolVersion: 1, requestId: '2', type: 'TEST_CONNECTION', accountId: account.id,
   }, deps);
   assert.equal(missingCredential.error?.code, 'CREDENTIAL_NOT_FOUND');
+});
+
+test('PING声明可选会话能力，旧协议仍可用，限流结构化字段保留', async () => {
+  const deps = dependencies();
+  const ping = await handleNativeMailRequest({ protocolVersion: 1, requestId: 'ping', type: 'PING' }, deps);
+  assert.ok((ping.data as { capabilities: string[] }).capabilities.includes('imap-session-v1'));
+  await deps.accounts.upsert(account); await deps.credentials.set(account.id, 'test-only');
+  deps.imap.testConnection = async () => { throw new NativeMailServiceError('RATE_LIMITED', '等待自动重试', true, '2026-10-23T08:00:00Z'); };
+  const result = await handleNativeMailRequest({ protocolVersion: 1, requestId: 'test', type: 'TEST_CONNECTION', accountId: account.id }, deps);
+  assert.equal(result.error?.code, 'RATE_LIMITED'); assert.equal(result.error?.retryAt, '2026-10-23T08:00:00Z');
 });
 
 test('运行时校验拒绝非 TLS、非法邮箱和越界 limit', () => {

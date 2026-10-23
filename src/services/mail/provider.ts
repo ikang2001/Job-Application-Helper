@@ -13,6 +13,8 @@ export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promis
 export interface MailProvider {
   readonly kind: MailProviderKind;
   readonly accountId: string;
+  beginScan?(): Promise<void>;
+  endScan?(): Promise<void>;
 
   testConnection(signal?: AbortSignal): Promise<MailConnectionResult>;
   listHeaders(options: MailQueryOptions): Promise<MailPage<MailHeader>>;
@@ -26,6 +28,7 @@ export type MailProviderErrorCode =
   | 'NOT_FOUND'
   | 'CURSOR_EXPIRED'
   | 'RATE_LIMITED'
+  | 'ACCOUNT_BUSY'
   | 'SERVICE_UNAVAILABLE'
   | 'NETWORK_ERROR'
   | 'TIMEOUT'
@@ -37,6 +40,7 @@ export class MailProviderError extends Error {
   readonly provider: MailProviderKind;
   readonly retryable: boolean;
   readonly status?: number;
+  readonly retryAt?: string;
 
   constructor(options: {
     code: MailProviderErrorCode;
@@ -44,6 +48,7 @@ export class MailProviderError extends Error {
     message: string;
     retryable?: boolean;
     status?: number;
+    retryAt?: string;
     cause?: unknown;
   }) {
     super(options.message, { cause: options.cause });
@@ -52,6 +57,7 @@ export class MailProviderError extends Error {
     this.provider = options.provider;
     this.retryable = options.retryable ?? false;
     this.status = options.status;
+    this.retryAt = options.retryAt;
   }
 }
 

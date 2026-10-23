@@ -36,3 +36,12 @@ npm run uninstall-host -- --browser edge
 - 共享文件不包含 API Key、邮箱授权码、WebDAV 密码、简历文件或其他扩展设置。
 - stdout 只承载 Native Messaging 帧，诊断信息写 stderr。
 - Native Host 到扩展的单条响应严格限制在 1 MiB 内。
+
+## 1.1.2 邮箱连接修复
+
+- `PING` 可选返回 `capabilities: ["imap-session-v1"]`；新版客户端在扫描前验证能力，不支持时明确提示升级。
+- `BEGIN_SESSION` / `END_SESSION` 在同一 Native Messaging 端口内复用一条 IMAP 连接；旧的单请求协议和本机投递同步保持兼容。
+- `RATE_LIMITED` 与 `ACCOUNT_BUSY` 保留错误类型，可附带 ISO 格式 `retryAt`。限流采用 30、60、120 分钟应用重试间隔，成功访问后重置；不是服务商解封时间承诺。
+- `%LOCALAPPDATA%\JobApplicationHelper\mail-runtime` 为独立运行状态目录，仅保存账号哈希对应的失败次数、冷却时间和占用进程号，不含邮箱地址、授权码和邮件正文。
+- 同一邮箱跨进程使用 Windows 命名管道互斥，异常退出后系统自动释放；关闭端口、扫描结束或空闲超时会释放邮箱连接。
+- 无需数据迁移、清空账号或重新授权。完整步骤见项目 `docs/mail-recovery-upgrade.md`。

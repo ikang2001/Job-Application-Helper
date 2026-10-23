@@ -45,6 +45,9 @@ private-data/
 personal-data/
 mobile-cloud/data/
 application-records-sync.json
+desktop-data.json
+mail-accounts.json
+mail-runtime/
 job-application-helper.json
 *.backup.json
 *.export.json
@@ -56,6 +59,7 @@ job-application-helper.json
 /.superpowers/
 /docs/archive/
 /docs/superpowers/
+/docs/mail-recovery-validation.md
 /deep-research-report*.md
 /Job-Application-Helper_自用增强改造工程规格.md
 /image*.png

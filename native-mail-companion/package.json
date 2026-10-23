@@ -1,13 +1,13 @@
 {
   "name": "job-application-helper-native-mail-companion",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "type": "module",
   "description": "Local IMAP and application-record bridge for Job-Application-Helper",
   "scripts": {
     "build": "node scripts/prepare-build.mjs && tsc -p tsconfig.json && node scripts/verify-build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/protocol.test.ts src/accountStore.test.ts src/localRecordsStore.test.ts src/handler.test.ts src/imapService.test.ts",
+    "test": "tsx --test src/protocol.test.ts src/accountStore.test.ts src/localRecordsStore.test.ts src/handler.test.ts src/imapService.test.ts src/mailRuntime.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
     "start": "node dist/index.js",
     "install-host": "node scripts/install-host.mjs",

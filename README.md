@@ -62,6 +62,10 @@
 
 ## 普通用户手动安装（Windows）
 
+邮箱限流修复版配套版本为：扩展 **1.1.41**、桌面 **1.1.36**、Native Companion **1.1.2**。
+已有用户请先阅读 [保留数据的升级步骤](docs/mail-recovery-upgrade.md)，不要卸载扩展、清空数据或重新创建邮箱账号。
+从 [v1.1.41 发布页](https://github.com/ikang2001/Job-Application-Helper/releases/tag/v1.1.41) 下载同批次更新包与 SHA256 校验文件，详见 [中文版本说明](docs/releases/v1.1.41.md)。升级前保留本地旧安装包，扩展使用原目录覆盖更新。
+
 目前桌面端、浏览器扩展和 Native Mail Companion 是三个独立发布物，还没有合并成一个安装器。推荐按“桌面端 → 浏览器扩展 → Native Companion”的顺序安装。
 
 ### 1. 准备环境与下载文件

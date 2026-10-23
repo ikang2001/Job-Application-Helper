@@ -215,3 +215,38 @@ test('连接未在 required time 内建立时映射为可重试超时', async ()
     },
   );
 });
+
+test('整轮60封邮件只登录一次，所有IMAP命令串行，结束后释放', async () => {
+  let logins = 0;
+  let logouts = 0;
+  let active = 0;
+  let maximum = 0;
+  const original = fakeClient();
+  const service = new ImapMailService(() => fakeClient({
+    connect: async () => { logins++; }, logout: async () => { logouts++; },
+    fetchOne: async (...args) => {
+      active++; maximum = Math.max(maximum, active);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      const result = await original.fetchOne(...args); active--; return result;
+    },
+  }));
+  await service.beginSession(account, 'test-only');
+  await service.listMessages(account, 'test-only', { limit: 100 });
+  await Promise.all(Array.from({ length: 60 }, (_, index) => service.getMessage(account, 'test-only', String(index + 1))));
+  await service.endSession(account.id);
+  assert.equal(logins, 1); assert.equal(logouts, 1); assert.equal(maximum, 1);
+});
+
+test('会话中断后不偷偷重新登录，保留错误直到结束并释放连接', async () => {
+  let logins = 0;
+  let logouts = 0;
+  const service = new ImapMailService(() => fakeClient({
+    connect: async () => { logins++; }, logout: async () => { logouts++; },
+    fetchOne: async () => { throw new Error('socket closed'); },
+  }));
+  await service.beginSession(account, 'test-only');
+  await assert.rejects(service.getMessage(account, 'test-only', '1'));
+  await assert.rejects(service.getMessage(account, 'test-only', '2'));
+  assert.equal(logins, 1); assert.equal(logouts, 1);
+  await service.close();
+});

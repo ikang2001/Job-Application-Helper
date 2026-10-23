@@ -51,7 +51,15 @@ async function dispatch(
 ): Promise<unknown> {
   switch (request.type) {
     case 'PING':
-      return { host: 'com.job_application_helper.mail', version: '1.1.1' };
+      return { host: 'com.job_application_helper.mail', version: '1.1.2', capabilities: ['imap-session-v1'] };
+    case 'BEGIN_SESSION': {
+      const { account, credential } = await loadConnection(dependencies, request.accountId);
+      await dependencies.imap.beginSession(account, credential);
+      return { accountId: request.accountId };
+    }
+    case 'END_SESSION':
+      await dependencies.imap.endSession(request.accountId);
+      return { accountId: request.accountId };
     case 'MERGE_APPLICATION_RECORDS': {
       await dependencies.localRecords.merge({
         writer: request.writer,
@@ -151,6 +159,8 @@ export function parseNativeMailRequest(input: unknown): NativeMailRequest {
       };
     case 'DELETE_ACCOUNT':
     case 'TEST_CONNECTION':
+    case 'BEGIN_SESSION':
+    case 'END_SESSION':
       return {
         protocolVersion: 1,
         requestId,
@@ -342,7 +352,7 @@ function normalizeHandlerError(error: unknown): NonNullable<NativeMailResponse['
     return { code: error.code, message: error.message, retryable: error.code === 'STALE_REVISION' };
   }
   if (error instanceof NativeMailServiceError) {
-    return { code: error.code, message: error.message, retryable: error.retryable };
+    return { code: error.code, message: error.message, retryable: error.retryable, retryAt: error.retryAt };
   }
   return {
     code: 'INTERNAL_ERROR',
